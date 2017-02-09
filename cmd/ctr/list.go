@@ -22,7 +22,7 @@ var listCommand = cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("ID\tSTATUS\tPROCS\tBUNDLE\n")
+		fmt.Printf("ID\tSTATE\tPROCS\tBUNDLE\n")
 		for _, c := range listResponse.Containers {
 			listProcResponse, err := executionService.ListProcesses(gocontext.Background(),
 				&execution.ListProcessesRequest{ContainerID: c.ID})
@@ -31,7 +31,7 @@ var listCommand = cli.Command{
 			}
 			fmt.Printf("%s\t%s\t%d\t%s\n",
 				c.ID,
-				c.Status,
+				c.State,
 				len(listProcResponse.Processes),
 				c.Bundle,
 			)

@@ -5,6 +5,7 @@ import (
 	"syscall"
 
 	"github.com/crosbymichael/console"
+	"github.com/docker/containerd/api"
 	apishim "github.com/docker/containerd/api/shim"
 	"github.com/docker/containerd/utils"
 	google_protobuf "github.com/golang/protobuf/ptypes/empty"
@@ -138,19 +139,19 @@ func (s *Service) State(ctx context.Context, r *apishim.StateRequest) (*apishim.
 		ID:        s.id,
 		Bundle:    s.bundle,
 		InitPid:   uint32(s.initProcess.Pid()),
-		Processes: []*apishim.Process{},
+		Processes: []*api.Process{},
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, p := range s.processes {
-		state := apishim.State_RUNNING
+		state := api.State_RUNNING
 		if err := syscall.Kill(p.Pid(), 0); err != nil {
 			if err != syscall.ESRCH {
 				return nil, err
 			}
-			state = apishim.State_STOPPED
+			state = api.State_STOPPED
 		}
-		o.Processes = append(o.Processes, &apishim.Process{
+		o.Processes = append(o.Processes, &api.Process{
 			Pid:   uint32(p.Pid()),
 			State: state,
 		})
