@@ -147,26 +147,26 @@ func (b *Snapshotter) makeActive(key, parent string, readonly bool) ([]container
 		// create new subvolume
 		// btrfs subvolume create /dir
 		if err := btrfs.SubvolCreate(target); err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "SubvolCreate(%q) failed", target)
 		}
 	} else {
 		// btrfs subvolume snapshot /parent /subvol
 		if err := btrfs.SubvolSnapshot(target, parentp, readonly); err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "SubvolSnapshot(%q, %q, %v) failed", target, parentp, readonly)
 		}
 
 		if err := os.Symlink(parentp, parentlink); err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "Symlink(%q, %q) failed", parentp, parentlink)
 		}
 	}
 
 	// write in the name
 	if err := ioutil.WriteFile(namep, []byte(key), 0644); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "error while writing %q to %q", key, namep)
 	}
 
 	if err := os.Symlink(target, indexlink); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "Symlink(%q, %q) failed", target, indexlink)
 	}
 
 	return b.mounts(target)
@@ -178,7 +178,7 @@ func (b *Snapshotter) mounts(dir string) ([]containerd.Mount, error) {
 	// get the subvolume id back out for the mount
 	info, err := btrfs.SubvolInfo(dir)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "SubvolInfo(%q) failed", dir)
 	}
 
 	options = append(options, fmt.Sprintf("subvolid=%d", info.ID))
