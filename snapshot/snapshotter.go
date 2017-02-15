@@ -5,10 +5,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/docker/containerd"
+	"github.com/docker/containerd/fs/fstest"
 	"github.com/docker/containerd/testutil"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -225,6 +228,8 @@ func SnapshotterSuite(t *testing.T, name string, snapshotterFn func(root string)
 
 func makeTest(t *testing.T, name string, snapshotterFn func(root string) (Snapshotter, func(), error), fn func(t *testing.T, snapshotter Snapshotter, work string)) func(t *testing.T) {
 	return func(t *testing.T) {
+		oldumask := syscall.Umask(0)
+		defer syscall.Umask(oldumask)
 		// Make two directories: a snapshotter root and a play area for the tests:
 		//
 		// 	/tmp
@@ -258,44 +263,59 @@ func makeTest(t *testing.T, name string, snapshotterFn func(root string) (Snapsh
 	}
 }
 
+func tFatal(t *testing.T, err error) {
+	t.Fatal(errors.WithStack(err))
+}
+
 // checkSnapshotterBasic tests the basic workflow of a snapshot snapshotter.
 func checkSnapshotterBasic(t *testing.T, snapshotter Snapshotter, work string) {
 	ctx := context.TODO()
+
+	initialApplier := fstest.Apply(
+		fstest.CreateFile("/foo", []byte("foo\n"), 0777),
+		fstest.CreateDir("/a", 0755),
+		fstest.CreateDir("/a/b", 0755),
+		fstest.CreateDir("/a/b/c", 0755),
+	)
+
+	diffApplier := fstest.Apply(
+		fstest.CreateFile("/bar", []byte("bar\n"), 0777),
+		// also, change content of foo to bar
+		fstest.CreateFile("/foo", []byte("bar\n"), 0777),
+		fstest.RemoveAll("/a/b"),
+	)
+
 	preparing := filepath.Join(work, "preparing")
 	if err := os.MkdirAll(preparing, 0777); err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 
 	mounts, err := snapshotter.Prepare(ctx, preparing, "")
 	if err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 
 	if len(mounts) < 1 {
-		t.Fatal("expected mounts to have entries")
+		tFatal(t, errors.New("expected mounts to have entries"))
 	}
 
 	if err := containerd.MountAll(mounts, preparing); err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 	defer testutil.Unmount(t, preparing)
 
-	if err := ioutil.WriteFile(filepath.Join(preparing, "foo"), []byte("foo\n"), 0777); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.MkdirAll(filepath.Join(preparing, "a", "b", "c"), 0755); err != nil {
-		t.Fatal(err)
+	if err := initialApplier.Apply(preparing); err != nil {
+		tFatal(t, err)
 	}
 
 	committed := filepath.Join(work, "committed")
 	if err := snapshotter.Commit(ctx, committed, preparing); err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 
 	si, err := snapshotter.Stat(ctx, committed)
 	if err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 
 	assert.Equal(t, "", si.Parent)
@@ -303,29 +323,24 @@ func checkSnapshotterBasic(t *testing.T, snapshotter Snapshotter, work string) {
 
 	next := filepath.Join(work, "nextlayer")
 	if err := os.MkdirAll(next, 0777); err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 
 	mounts, err = snapshotter.Prepare(ctx, next, committed)
 	if err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 	if err := containerd.MountAll(mounts, next); err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 	defer testutil.Unmount(t, next)
 
-	if err := ioutil.WriteFile(filepath.Join(next, "bar"), []byte("bar\n"), 0777); err != nil {
-		t.Fatal(err)
+	if err := fstest.CheckDirectoryEqualWithApplier(next, initialApplier); err != nil {
+		tFatal(t, err)
 	}
 
-	// also, change content of foo to bar
-	if err := ioutil.WriteFile(filepath.Join(next, "foo"), []byte("bar\n"), 0777); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.RemoveAll(filepath.Join(next, "a", "b")); err != nil {
-		t.Log(err)
+	if err := diffApplier.Apply(next); err != nil {
+		tFatal(t, err)
 	}
 
 	ni, err := snapshotter.Stat(ctx, next)
@@ -338,12 +353,12 @@ func checkSnapshotterBasic(t *testing.T, snapshotter Snapshotter, work string) {
 
 	nextCommitted := filepath.Join(work, "committed-next")
 	if err := snapshotter.Commit(ctx, nextCommitted, next); err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 
 	si2, err := snapshotter.Stat(ctx, nextCommitted)
 	if err != nil {
-		t.Fatal(err)
+		tFatal(t, err)
 	}
 
 	assert.Equal(t, committed, si2.Parent)
@@ -360,4 +375,23 @@ func checkSnapshotterBasic(t *testing.T, snapshotter Snapshotter, work string) {
 	}))
 
 	assert.Equal(t, expected, walked)
+
+	nextnext := filepath.Join(work, "nextnextlayer")
+	if err := os.MkdirAll(nextnext, 0777); err != nil {
+		tFatal(t, err)
+	}
+
+	mounts, err = snapshotter.View(ctx, nextnext, nextCommitted)
+	if err != nil {
+		tFatal(t, err)
+	}
+	if err := containerd.MountAll(mounts, nextnext); err != nil {
+		tFatal(t, err)
+	}
+	defer testutil.Unmount(t, nextnext)
+
+	if err := fstest.CheckDirectoryEqualWithApplier(nextnext,
+		fstest.Apply(initialApplier, diffApplier)); err != nil {
+		tFatal(t, err)
+	}
 }
