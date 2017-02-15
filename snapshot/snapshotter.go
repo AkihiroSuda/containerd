@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/docker/containerd"
@@ -220,6 +221,8 @@ func SnapshotterSuite(t *testing.T, name string, snapshotterFn func(root string)
 
 func makeTest(t *testing.T, name string, snapshotterFn func(root string) (Snapshotter, func(), error), fn func(t *testing.T, snapshotter Snapshotter, work string)) func(t *testing.T) {
 	return func(t *testing.T) {
+		oldumask := syscall.Umask(0)
+		defer syscall.Umask(oldumask)
 		// Make two directories: a snapshotter root and a play area for the tests:
 		//
 		// 	/tmp
@@ -282,6 +285,38 @@ func checkSnapshotterBasic(t *testing.T, snapshotter Snapshotter, work string) {
 		t.Fatal(err)
 	}
 
+	fooMode := os.FileMode(0777)
+	aMode, bMode, cMode := os.ModeDir|0755, os.ModeDir|0755, os.ModeDir|0755
+	info1 := &testutil.FileInfo{
+		BaseName: "",
+		// If you set Mode to os.ModeDir | 0777 for "", overlay fails (btrfs and naive passes)
+		// (it always becomes os.ModeDir | 0700 on overlay)
+		Children: []*testutil.FileInfo{
+			{
+				BaseName: "foo",
+				Mode:     &fooMode,
+				Content:  []byte("foo\n"),
+			},
+			{
+				BaseName: "a",
+				Mode:     &aMode,
+				Children: []*testutil.FileInfo{
+					{
+						BaseName: "b",
+						Mode:     &bMode,
+						Children: []*testutil.FileInfo{
+							{
+								BaseName: "c",
+								Mode:     &cMode,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	testutil.AssertTree(t, preparing, info1)
+
 	committed := filepath.Join(work, "committed")
 	if err := snapshotter.Commit(committed, preparing); err != nil {
 		t.Fatal(err)
@@ -307,6 +342,8 @@ func checkSnapshotterBasic(t *testing.T, snapshotter Snapshotter, work string) {
 		t.Fatal(err)
 	}
 	defer testutil.Unmount(t, next)
+
+	testutil.AssertTree(t, next, info1)
 
 	if err := ioutil.WriteFile(filepath.Join(next, "bar"), []byte("bar\n"), 0777); err != nil {
 		t.Fatal(err)
