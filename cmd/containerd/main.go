@@ -20,6 +20,7 @@ import (
 	contentapi "github.com/containerd/containerd/api/services/content"
 	api "github.com/containerd/containerd/api/services/execution"
 	imagesapi "github.com/containerd/containerd/api/services/images"
+	introspectionapi "github.com/containerd/containerd/api/services/introspection"
 	rootfsapi "github.com/containerd/containerd/api/services/rootfs"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
@@ -27,6 +28,7 @@ import (
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/snapshot"
 	"github.com/containerd/containerd/sys"
+	"github.com/containerd/containerd/version"
 	metrics "github.com/docker/go-metrics"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
@@ -49,14 +51,14 @@ var (
 
 func init() {
 	cli.VersionPrinter = func(c *cli.Context) {
-		fmt.Println(c.App.Name, containerd.Package, c.App.Version)
+		fmt.Println(c.App.Name, version.Package, c.App.Version)
 	}
 }
 
 func main() {
 	app := cli.NewApp()
 	app.Name = "containerd"
-	app.Version = containerd.Version
+	app.Version = version.Version
 	app.Usage = usage
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
@@ -419,6 +421,8 @@ func interceptor(ctx gocontext.Context,
 		ctx = log.WithModule(ctx, "rootfs")
 	case imagesapi.ImagesServer:
 		ctx = log.WithModule(ctx, "images")
+	case introspectionapi.IntrospectionServer:
+		ctx = log.WithModule(ctx, "introspection")
 	default:
 		fmt.Printf("unknown GRPC server type: %#v\n", info.Server)
 	}

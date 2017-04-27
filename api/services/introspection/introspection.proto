@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package containerd.v1;
+
+import "gogoproto/gogo.proto";
+
+service Introspection {
+	rpc IntrospectVersion(IntrospectVersionRequest) returns (Version);
+	rpc IntrospectAll(IntrospectAllRequest) returns (IntrospectAllResponse);
+}
+
+message Version {
+	string version = 1;
+	string revision = 2;
+}
+
+message IntrospectVersionRequest {
+}
+
+message IntrospectAllRequest {
+}
+
+message IntrospectAllResponse {
+	Version version = 1;
+}

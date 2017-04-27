@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/version"
 	"github.com/urfave/cli"
 )
 
@@ -15,14 +15,14 @@ var (
 
 func init() {
 	cli.VersionPrinter = func(c *cli.Context) {
-		fmt.Println(c.App.Name, containerd.Package, c.App.Version)
+		fmt.Println(c.App.Name, version.Package, c.App.Version)
 	}
 }
 
 func main() {
 	app := cli.NewApp()
 	app.Name = "ctr"
-	app.Version = containerd.Version
+	app.Version = version.Version
 	app.Usage = `
         __
   _____/ /______
@@ -59,6 +59,7 @@ containerd client
 		killCommand,
 		pprofCommand,
 		execCommand,
+		introspectCommand,
 	}
 	app.Commands = append(app.Commands, extraCmds...)
 	app.Before = func(context *cli.Context) error {

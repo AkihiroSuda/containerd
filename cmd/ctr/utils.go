@@ -15,12 +15,14 @@ import (
 	contentapi "github.com/containerd/containerd/api/services/content"
 	"github.com/containerd/containerd/api/services/execution"
 	imagesapi "github.com/containerd/containerd/api/services/images"
+	introspectionservice "github.com/containerd/containerd/api/services/introspection"
 	rootfsapi "github.com/containerd/containerd/api/services/rootfs"
 	"github.com/containerd/containerd/api/types/container"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
 	contentservice "github.com/containerd/containerd/services/content"
 	imagesservice "github.com/containerd/containerd/services/images"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/urfave/cli"
 	"google.golang.org/grpc"
 )
@@ -57,6 +59,14 @@ func getImageStore(clicontext *cli.Context) (images.Store, error) {
 		return nil, err
 	}
 	return imagesservice.NewStoreFromClient(imagesapi.NewImagesClient(conn)), nil
+}
+
+func getIntrospection(context *cli.Context) (introspectionservice.IntrospectionClient, error) {
+	conn, err := getGRPCConnection(context)
+	if err != nil {
+		return nil, err
+	}
+	return introspectionservice.NewIntrospectionClient(conn), nil
 }
 
 func getTempDir(id string) (string, error) {
@@ -128,4 +138,12 @@ func parseSignal(rawSignal string) (syscall.Signal, error) {
 func stopCatch(sigc chan os.Signal) {
 	signal.Stop(sigc)
 	close(sigc)
+}
+
+func getSpewDumper() *spew.ConfigState {
+	dumper := spew.NewDefaultConfig()
+	dumper.Indent = "\t"
+	dumper.DisableMethods = true
+	dumper.DisablePointerAddresses = true
+	return dumper
 }
