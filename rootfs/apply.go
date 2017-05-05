@@ -18,7 +18,7 @@ import (
 )
 
 type Unpacker interface {
-	Unpack(ctx context.Context, layers []ocispec.Descriptor) (digest.Digest, error)
+	Unpack(ctx context.Context, layers []ocispec.Descriptor, snapshotter string) (digest.Digest, error)
 }
 
 type Mounter interface {

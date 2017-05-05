@@ -17,7 +17,7 @@ var (
 )
 
 func init() {
-	plugin.Register("snapshot-windows", &plugin.Registration{
+	plugin.Register("windows", &plugin.Registration{
 		Type: plugin.SnapshotPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
 			return NewSnapshotter(filepath.Join(ic.Root, "snapshot", "windows"))

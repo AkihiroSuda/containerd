@@ -14,6 +14,7 @@ service RootFS {
 
 message UnpackRequest {
 	repeated containerd.v1.types.Descriptor layers = 1;
+	string snapshotter = 2;
 }
 
 message UnpackResponse {
@@ -24,10 +25,12 @@ message PrepareRequest {
 	string name = 1;
 	string chain_id = 2 [(gogoproto.customtype) = "github.com/opencontainers/go-digest.Digest", (gogoproto.nullable) = false, (gogoproto.customname) = "ChainID"];
 	bool readonly = 3;
+	string snapshotter = 4;
 }
 
 message MountsRequest {
 	string name = 1;
+	string snapshotter = 2;
 }
 
 message MountResponse {

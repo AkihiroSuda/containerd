@@ -47,6 +47,11 @@ var runCommand = cli.Command{
 			Name:  "readonly",
 			Usage: "set the containers filesystem as readonly",
 		},
+		cli.StringFlag{
+			Name:  "snapshotter",
+			Usage: "snapshotter name (e.g. overlay, btrfs; empty value stands for the daemon default value)",
+			Value: "",
+		},
 	},
 	Action: func(context *cli.Context) error {
 		var (
@@ -54,8 +59,9 @@ var runCommand = cli.Command{
 			resp        *rootfsapi.MountResponse
 			imageConfig ocispec.Image
 
-			ctx = gocontext.Background()
-			id  = context.String("id")
+			ctx         = gocontext.Background()
+			id          = context.String("id")
+			snapshotter = context.String("snapshotter")
 		)
 		if id == "" {
 			return errors.New("container id must be provided")
@@ -104,8 +110,9 @@ var runCommand = cli.Command{
 			}
 
 			if _, err := rootfsClient.Prepare(gocontext.TODO(), &rootfsapi.PrepareRequest{
-				Name:    id,
-				ChainID: identity.ChainID(diffIDs),
+				Name:        id,
+				ChainID:     identity.ChainID(diffIDs),
+				Snapshotter: snapshotter,
 			}); err != nil {
 				if grpc.Code(err) != codes.AlreadyExists {
 					return err
@@ -113,7 +120,8 @@ var runCommand = cli.Command{
 			}
 
 			resp, err = rootfsClient.Mounts(gocontext.TODO(), &rootfsapi.MountsRequest{
-				Name: id,
+				Name:        id,
+				Snapshotter: snapshotter,
 			})
 			if err != nil {
 				return err

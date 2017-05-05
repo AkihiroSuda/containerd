@@ -28,14 +28,22 @@ var rootfsCommand = cli.Command{
 	},
 }
 
+var snapshotterFlag = cli.StringFlag{
+	Name:  "snapshotter",
+	Usage: "snapshotter name (e.g. overlay, btrfs; empty value stands for the daemon default value)",
+	Value: "",
+}
 var rootfsUnpackCommand = cli.Command{
 	Name:      "unpack",
 	Usage:     "unpack applies layers from a manifest to a snapshot",
 	ArgsUsage: "[flags] <digest>",
-	Flags:     []cli.Flag{},
+	Flags: []cli.Flag{
+		snapshotterFlag,
+	},
 	Action: func(clicontext *cli.Context) error {
 		var (
-			ctx = background
+			ctx         = background
+			snapshotter = clicontext.String("snapshotter")
 		)
 
 		dgst, err := digest.Parse(clicontext.Args().First())
@@ -57,7 +65,7 @@ var rootfsUnpackCommand = cli.Command{
 		}
 
 		unpacker := rootfsservice.NewUnpackerFromClient(rootfsapi.NewRootFSClient(conn))
-		chainID, err := unpacker.Unpack(ctx, m.Layers)
+		chainID, err := unpacker.Unpack(ctx, m.Layers, snapshotter)
 		if err != nil {
 			return err
 		}
@@ -72,10 +80,13 @@ var rootfsPrepareCommand = cli.Command{
 	Name:      "prepare",
 	Usage:     "prepare gets mount commands for digest",
 	ArgsUsage: "[flags] <digest> <target>",
-	Flags:     []cli.Flag{},
+	Flags: []cli.Flag{
+		snapshotterFlag,
+	},
 	Action: func(clicontext *cli.Context) error {
 		var (
-			ctx = background
+			ctx         = background
+			snapshotter = clicontext.String("snapshotter")
 		)
 
 		if clicontext.NArg() != 2 {
@@ -98,8 +109,9 @@ var rootfsPrepareCommand = cli.Command{
 		rclient := rootfsapi.NewRootFSClient(conn)
 
 		ir := &rootfsapi.PrepareRequest{
-			Name:    target,
-			ChainID: dgst,
+			Name:        target,
+			ChainID:     dgst,
+			Snapshotter: snapshotter,
 		}
 
 		resp, err := rclient.Prepare(ctx, ir)

@@ -35,11 +35,12 @@ command. As part of this process, we do the following:
 2. Prepare the snapshot filesystem with the pulled resources.
 3. Register metadata for the image.
 `,
-	Flags: registryFlags,
+	Flags: append(registryFlags, snapshotterFlag),
 	Action: func(clicontext *cli.Context) error {
 		var (
-			ctx = background
-			ref = clicontext.Args().First()
+			ctx         = background
+			ref         = clicontext.Args().First()
+			snapshotter = clicontext.String("snapshotter")
 		)
 
 		conn, err := connectGRPC(clicontext)
@@ -130,7 +131,7 @@ command. As part of this process, we do the following:
 			rootfs := rootfsservice.NewUnpackerFromClient(rootfsapi.NewRootFSClient(conn))
 
 			log.G(ctx).Info("unpacking rootfs")
-			chainID, err := rootfs.Unpack(ctx, manifest.Layers)
+			chainID, err := rootfs.Unpack(ctx, manifest.Layers, snapshotter)
 			if err != nil {
 				log.G(ctx).Fatal(err)
 			}

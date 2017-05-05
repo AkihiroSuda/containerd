@@ -47,7 +47,7 @@ type config struct {
 	Debug debug `toml:"debug"`
 	// Metrics and monitoring settings
 	Metrics metricsConfig `toml:"metrics"`
-	// Snapshotter specifies which snapshot driver to use
+	// Snapshotter specifies which snapshot driver to use by default
 	Snapshotter string `toml:"snapshotter"`
 	// Plugins provides plugin specific configuration for the initialization of a plugin
 	Plugins map[string]toml.Primitive `toml:"plugins"`

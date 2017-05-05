@@ -20,9 +20,10 @@ type remoteUnpacker struct {
 	client rootfsapi.RootFSClient
 }
 
-func (rp remoteUnpacker) Unpack(ctx context.Context, layers []ocispec.Descriptor) (digest.Digest, error) {
+func (rp remoteUnpacker) Unpack(ctx context.Context, layers []ocispec.Descriptor, snapshotter string) (digest.Digest, error) {
 	pr := rootfsapi.UnpackRequest{
-		Layers: make([]*containerd_v1_types.Descriptor, len(layers)),
+		Layers:      make([]*containerd_v1_types.Descriptor, len(layers)),
+		Snapshotter: snapshotter,
 	}
 	for i, l := range layers {
 		pr.Layers[i] = &containerd_v1_types.Descriptor{

@@ -23,7 +23,7 @@ type btrfsConfig struct {
 }
 
 func init() {
-	plugin.Register("snapshot-btrfs", &plugin.Registration{
+	plugin.Register("btrfs", &plugin.Registration{
 		Type:   plugin.SnapshotPlugin,
 		Config: &btrfsConfig{},
 		Init: func(ic *plugin.InitContext) (interface{}, error) {

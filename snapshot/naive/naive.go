@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	plugin.Register("snapshot-naive", &plugin.Registration{
+	plugin.Register("naive", &plugin.Registration{
 		Type: plugin.SnapshotPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
 			return NewSnapshotter(filepath.Join(ic.Root, "snapshot", "naive"))

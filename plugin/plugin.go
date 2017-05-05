@@ -30,15 +30,17 @@ type Registration struct {
 
 // TODO(@crosbymichael): how to we keep this struct from growing but support dependency injection for loaded plugins?
 type InitContext struct {
-	Root        string
-	State       string
-	Runtimes    map[string]containerd.Runtime
-	Content     *content.Store
-	Meta        *bolt.DB
-	Snapshotter snapshot.Snapshotter
-	Config      interface{}
-	Context     context.Context
-	Monitor     ContainerMonitor
+	Root     string
+	State    string
+	Runtimes map[string]containerd.Runtime
+	// TODO: DefaultRuntimeName as in DefaultSnapshotterName
+	Content                *content.Store
+	Meta                   *bolt.DB
+	Snapshotters           map[string]snapshot.Snapshotter
+	DefaultSnapshotterName string
+	Config                 interface{}
+	Context                context.Context
+	Monitor                ContainerMonitor
 }
 
 type Service interface {
