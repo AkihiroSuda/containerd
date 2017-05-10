@@ -16,6 +16,7 @@ import (
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
+	"github.com/containerd/containerd/remotes/filesystem"
 	imagesservice "github.com/containerd/containerd/services/images"
 	"github.com/crosbymichael/console"
 	"github.com/pkg/errors"
@@ -39,6 +40,11 @@ var registryFlags = []cli.Flag{
 	cli.StringFlag{
 		Name:  "refresh",
 		Usage: "Refresh token for authorization server",
+	},
+	cli.StringFlag{
+		Name:  "resolver",
+		Usage: "Resolver type (docker, filesystem)",
+		Value: "docker",
 	},
 }
 
@@ -77,6 +83,21 @@ func connectGRPC(context *cli.Context) (*grpc.ClientConn, error) {
 
 // getResolver prepares the resolver from the environment and options.
 func getResolver(ctx context.Context, clicontext *cli.Context) (remotes.Resolver, error) {
+	switch s := clicontext.String("resolver"); s {
+	case "docker", "":
+		return getDockerResolver(ctx, clicontext)
+	case "filesystem":
+		return getFilesystemResolver(ctx, clicontext)
+	default:
+		return nil, fmt.Errorf("unknown resolver: %s (must be \"docker\" or \"filesystem\"\")", s)
+	}
+}
+
+func getFilesystemResolver(ctx context.Context, clicontext *cli.Context) (remotes.Resolver, error) {
+	return filesystem.NewResolver(filesystem.ResolverOptions{}), nil
+}
+
+func getDockerResolver(ctx context.Context, clicontext *cli.Context) (remotes.Resolver, error) {
 	username := clicontext.String("user")
 	var secret string
 	if i := strings.IndexByte(username, ':'); i > 0 {
