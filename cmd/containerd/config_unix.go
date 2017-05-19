@@ -13,7 +13,12 @@ func defaultConfig() *config {
 			Level:   "info",
 			Address: "/run/containerd/debug.sock",
 		},
-		Snapshotter: "naive",
-		Differ:      "base",
+		Snapshotters: []snapshotterConfig{
+			{
+				Name:   "naive",
+				Plugin: "snapshot-naive",
+				Differ: "diff-base",
+			},
+		},
 	}
 }

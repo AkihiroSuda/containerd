@@ -23,7 +23,8 @@ func init() {
 	plugin.Register("snapshot-overlay", &plugin.Registration{
 		Type: plugin.SnapshotPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
-			return NewSnapshotter(filepath.Join(ic.Root, "snapshot", "overlay"))
+			var constructor plugin.SnapshotterConstructor = NewSnapshotter
+			return constructor, nil
 		},
 	})
 }
@@ -52,7 +53,7 @@ func NewSnapshotter(root string) (snapshot.Snapshotter, error) {
 		return nil, err
 	}
 	if !supportsDType {
-		return nil, fmt.Errorf("%s does not support d_type. If the backing filesystem is xfs, please reformat with ftype=1 to enable d_type support.", root)
+		return nil, errors.Wrapf(plugin.ErrUnsupported, "%s does not support d_type. If the backing filesystem is xfs, please reformat with ftype=1 to enable d_type support.", root)
 	}
 	ms, err := storage.NewMetaStore(filepath.Join(root, "metadata.db"))
 	if err != nil {

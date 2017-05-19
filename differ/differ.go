@@ -21,7 +21,10 @@ func init() {
 	plugin.Register("diff-base", &plugin.Registration{
 		Type: plugin.DiffPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
-			return newBaseDiff(ic.Content, ic.Snapshotter)
+			var constructor plugin.DifferConstructor = func(sn snapshot.Snapshotter) (plugin.Differ, error) {
+				return newBaseDiff(ic.Content, sn)
+			}
+			return constructor, nil
 		},
 	})
 }

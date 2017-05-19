@@ -4,7 +4,6 @@ package windows
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/plugin"
@@ -20,7 +19,8 @@ func init() {
 	plugin.Register("snapshot-windows", &plugin.Registration{
 		Type: plugin.SnapshotPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
-			return NewSnapshotter(filepath.Join(ic.Root, "snapshot", "windows"))
+			var constructor plugin.SnapshotterConstructor = NewSnapshotter
+			return constructor, nil
 		},
 	})
 }

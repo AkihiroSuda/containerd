@@ -19,7 +19,7 @@ import (
 )
 
 func newSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, func(), error) {
-	snapshotter, err := NewSnapshotter(root)
+	snapshotter, err := NewSnapshotter("", root)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -23,8 +23,8 @@ func init() {
 	plugin.Register("snapshot-btrfs", &plugin.Registration{
 		Type: plugin.SnapshotPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
-			root := filepath.Join(ic.Root, "snapshot", "btrfs")
-			return NewSnapshotter(root)
+			var constructor plugin.SnapshotterConstructor = NewSnapshotter
+			return constructor, nil
 		},
 	})
 }
@@ -67,7 +67,7 @@ func NewSnapshotter(root string) (snapshot.Snapshotter, error) {
 	}
 	device, err := getBtrfsDevice(root, mounts)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(plugin.ErrUnsupported, err.Error())
 	}
 	var (
 		active    = filepath.Join(root, "active")

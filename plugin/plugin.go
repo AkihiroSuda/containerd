@@ -7,6 +7,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/snapshot"
+	"github.com/pkg/errors"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -22,6 +23,17 @@ const (
 	DiffPlugin
 )
 
+var (
+	// ErrUnsupported is raised when a plugin is not supported on the system
+	ErrUnsupported = errors.New("plugin is not supported on this host")
+)
+
+// SnapshotterConstructor is returned from Registration.Init for snapshotter plugins
+type SnapshotterConstructor func(root string) (snapshot.Snapshotter, error)
+
+// DifferConstructor is returned from Registration.Init for differ plugins
+type DifferConstructor func(sn snapshot.Snapshotter) (Differ, error)
+
 type Registration struct {
 	Type   PluginType
 	Config interface{}
@@ -30,16 +42,17 @@ type Registration struct {
 
 // TODO(@crosbymichael): how do we keep this struct from growing but support dependency injection for loaded plugins?
 type InitContext struct {
-	Root        string
-	State       string
-	Runtimes    map[string]Runtime
-	Content     content.Store
-	Meta        *bolt.DB
-	Snapshotter snapshot.Snapshotter
-	Differ      Differ
-	Config      interface{}
-	Context     context.Context
-	Monitor     TaskMonitor
+	Root                     string
+	State                    string
+	Runtimes                 map[string]Runtime
+	Content                  content.Store
+	Meta                     *bolt.DB
+	Snapshotters             map[string]snapshot.Snapshotter
+	DiffersBySnapshotterName map[string]Differ
+	DefaultSnapshotterName   string
+	Config                   interface{}
+	Context                  context.Context
+	Monitor                  TaskMonitor
 }
 
 type Service interface {

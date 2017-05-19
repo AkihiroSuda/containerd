@@ -59,12 +59,12 @@ func getContentStore(context *cli.Context) (content.Store, error) {
 	return contentservice.NewStoreFromClient(contentapi.NewContentClient(conn)), nil
 }
 
-func getSnapshotter(context *cli.Context) (snapshot.Snapshotter, error) {
+func getSnapshotter(context *cli.Context, snapshotterName string) (snapshot.Snapshotter, error) {
 	conn, err := getGRPCConnection(context)
 	if err != nil {
 		return nil, err
 	}
-	return snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(conn)), nil
+	return snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(conn), snapshotterName), nil
 }
 
 func getImageStore(clicontext *cli.Context) (images.Store, error) {

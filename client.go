@@ -65,8 +65,9 @@ func New(address string, opts ...NewClientOpts) (*Client, error) {
 		return nil, errors.Wrapf(err, "failed to dial %q", address)
 	}
 	c := &Client{
-		conn:    conn,
-		runtime: runtime.GOOS,
+		conn:        conn,
+		runtime:     runtime.GOOS,
+		snapshotter: "", // daemon default
 	}
 	for _, o := range opts {
 		if err := o(c); err != nil {
@@ -81,8 +82,9 @@ func New(address string, opts ...NewClientOpts) (*Client, error) {
 type Client struct {
 	conn *grpc.ClientConn
 
-	runtime   string
-	namespace string
+	runtime     string
+	snapshotter string
+	namespace   string
 }
 
 func (c *Client) IsServing(ctx context.Context) (bool, error) {
@@ -457,7 +459,7 @@ func (c *Client) ContentStore() content.Store {
 }
 
 func (c *Client) SnapshotService() snapshot.Snapshotter {
-	return snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(c.conn))
+	return snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(c.conn), c.snapshotter)
 }
 
 func (c *Client) TaskService() execution.TasksClient {

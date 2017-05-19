@@ -16,7 +16,12 @@ func defaultConfig() *config {
 			Level:   "info",
 			Address: `\\.\pipe\containerd-debug`,
 		},
-		Snapshotter: "windows",
-		Differ:      "base",
+		Snapshotters: []snapshotterConfig{
+			{
+				Name:   "windows",
+				Plugin: "snapshot-windows",
+				Differ: "diff-base",
+			},
+		},
 	}
 }

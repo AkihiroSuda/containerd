@@ -47,11 +47,8 @@ type config struct {
 	Debug debug `toml:"debug"`
 	// Metrics and monitoring settings
 	Metrics metricsConfig `toml:"metrics"`
-	// Snapshotter specifies which snapshot driver to use
-	Snapshotter string `toml:"snapshotter"`
-	// Differ specifies which differ to use. Differ is tightly coupled with the snapshotter
-	// so not all combinations may work.
-	Differ string `toml:"differ"`
+	// Snapshotters
+	Snapshotters []snapshotterConfig `toml:"snapshotters"`
 	// Plugins provides plugin specific configuration for the initialization of a plugin
 	Plugins map[string]toml.Primitive `toml:"plugins"`
 	// Enable containerd as a subreaper
@@ -92,4 +89,16 @@ type debug struct {
 
 type metricsConfig struct {
 	Address string `toml:"address"`
+}
+
+type snapshotterConfig struct {
+	Name   string `toml:"name"`
+	Plugin string `toml:"plugin"`
+	// If Root is empty, root is set to
+	// config.Root + path separator + snapshotterConfig.Name
+	Root string `toml:"root"`
+	// Differ specifies which differ to use. Differ is tightly coupled with the snapshotter
+	// so not all combinations may work.
+	Differ string `toml:"differ"`
+	// TODO(AkihiroSuda): Config toml.Primitive `toml:"config"`
 }
