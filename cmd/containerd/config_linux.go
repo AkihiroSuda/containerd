@@ -11,6 +11,15 @@ func defaultConfig() *config {
 			Level:   "info",
 			Address: "/run/containerd/debug.sock",
 		},
-		Snapshotter: "overlay",
+		Snapshotters: []snapshotterConfig{
+			{
+				Name:   "overlay",
+				Plugin: "snapshot-overlay",
+			},
+			{
+				Name:   "btrfs",
+				Plugin: "snapshot-btrfs",
+			},
+		},
 	}
 }

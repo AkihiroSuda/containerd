@@ -21,6 +21,23 @@ const (
 	TaskMonitorPlugin
 )
 
+// ErrUnsupported is raised when a plugin is not supported on the system
+type ErrUnsupported struct {
+	Kause error
+}
+
+func (e *ErrUnsupported) Error() string {
+	return fmt.Sprintf("plugin is unsupported: %v", e.Kause)
+}
+
+// Cause implements the causer interface described in github.com/pkg/errors.
+func (e *ErrUnsupported) Cause() error {
+	return e.Kause
+}
+
+// SnapshotterConstructor is returned from Registration.Init for snapshotter plugins
+type SnapshotterConstructor func(name, root string) (snapshot.Snapshotter, error)
+
 type Registration struct {
 	Type   PluginType
 	Config interface{}
@@ -29,15 +46,16 @@ type Registration struct {
 
 // TODO(@crosbymichael): how to we keep this struct from growing but support dependency injection for loaded plugins?
 type InitContext struct {
-	Root        string
-	State       string
-	Runtimes    map[string]Runtime
-	Content     content.Store
-	Meta        *bolt.DB
-	Snapshotter snapshot.Snapshotter
-	Config      interface{}
-	Context     context.Context
-	Monitor     TaskMonitor
+	Root                   string
+	State                  string
+	Runtimes               map[string]Runtime
+	Content                content.Store
+	Meta                   *bolt.DB
+	Snapshotters           map[string]snapshot.Snapshotter
+	DefaultSnapshotterName string
+	Config                 interface{}
+	Context                context.Context
+	Monitor                TaskMonitor
 }
 
 type Service interface {

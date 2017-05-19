@@ -24,7 +24,7 @@ const (
 func boltSnapshotter(t *testing.T) func(context.Context, string) (snapshot.Snapshotter, func(), error) {
 	return func(ctx context.Context, root string) (snapshot.Snapshotter, func(), error) {
 		device := setupBtrfsLoopbackDevice(t, root)
-		snapshotter, err := NewSnapshotter(root)
+		snapshotter, err := NewSnapshotter("", root)
 		if err != nil {
 			t.Fatal(err)
 		}

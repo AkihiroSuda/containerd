@@ -37,6 +37,11 @@ var checkpointCommand = cli.Command{
 			Name:  "binds",
 			Usage: "checkpoint bind mounts with the checkpoint",
 		},
+		cli.StringFlag{
+			Name:  "snapshotter",
+			Usage: "snapshotter name (e.g. overlay, btrfs; empty value stands for the daemon default value)",
+			Value: "",
+		},
 	},
 	Action: func(context *cli.Context) error {
 		var (
@@ -123,7 +128,7 @@ var checkpointCommand = cli.Command{
 			Descriptor: image.Target,
 		})
 		// checkpoint rw layer
-		snapshotter, err := getSnapshotter(context)
+		snapshotter, err := getSnapshotter(context, context.String("snapshotter"))
 		if err != nil {
 			return err
 		}

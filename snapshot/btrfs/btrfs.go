@@ -23,8 +23,8 @@ func init() {
 	plugin.Register("snapshot-btrfs", &plugin.Registration{
 		Type: plugin.SnapshotPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
-			root := filepath.Join(ic.Root, "snapshot", "btrfs")
-			return NewSnapshotter(root)
+			var constructor plugin.SnapshotterConstructor = NewSnapshotter
+			return constructor, nil
 		},
 	})
 }
@@ -60,14 +60,14 @@ func getBtrfsDevice(root string, mounts []mount.Info) (string, error) {
 // root directory for snapshots and stores the metadata in
 // a file in the provided root.
 // root needs to be a mount point of btrfs.
-func NewSnapshotter(root string) (snapshot.Snapshotter, error) {
+func NewSnapshotter(name, root string) (snapshot.Snapshotter, error) {
 	mounts, err := mount.Self()
 	if err != nil {
 		return nil, err
 	}
 	device, err := getBtrfsDevice(root, mounts)
 	if err != nil {
-		return nil, err
+		return nil, &plugin.ErrUnsupported{Kause: err}
 	}
 	var (
 		active    = filepath.Join(root, "active")

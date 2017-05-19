@@ -125,11 +125,15 @@ func main() {
 			return err
 		}
 		defer meta.Close()
-		snapshotter, err := loadSnapshotter(store)
+		snapshotterPlugins, err := loadSnapshotterPlugins(store)
 		if err != nil {
 			return err
 		}
-		services, err := loadServices(runtimes, store, snapshotter, meta)
+		snapshotters, err := loadSnapshotters(snapshotterPlugins)
+		if err != nil {
+			return err
+		}
+		services, err := loadServices(runtimes, store, snapshotters, meta)
 		if err != nil {
 			return err
 		}
@@ -318,13 +322,10 @@ func loadMonitor() (plugin.TaskMonitor, error) {
 	return plugin.NewMultiTaskMonitor(monitors...), nil
 }
 
-func loadSnapshotter(store content.Store) (snapshot.Snapshotter, error) {
+func loadSnapshotterPlugins(store content.Store) (map[string]plugin.SnapshotterConstructor, error) {
+	loadedPlugins := make(map[string]plugin.SnapshotterConstructor, 0)
 	for name, sr := range plugin.Registrations() {
 		if sr.Type != plugin.SnapshotPlugin {
-			continue
-		}
-		moduleName := fmt.Sprintf("snapshot-%s", conf.Snapshotter)
-		if name != moduleName {
 			continue
 		}
 
@@ -333,7 +334,7 @@ func loadSnapshotter(store content.Store) (snapshot.Snapshotter, error) {
 			Root:    conf.Root,
 			State:   conf.State,
 			Content: store,
-			Context: log.WithModule(global, moduleName),
+			Context: log.WithModule(global, name),
 		}
 		if sr.Config != nil {
 			if err := conf.decodePlugin(name, sr.Config); err != nil {
@@ -341,14 +342,54 @@ func loadSnapshotter(store content.Store) (snapshot.Snapshotter, error) {
 			}
 			ic.Config = sr.Config
 		}
-		sn, err := sr.Init(ic)
+		sci, err := sr.Init(ic)
 		if err != nil {
-			return nil, err
+			unsupported, ok := err.(*plugin.ErrUnsupported)
+			if ok {
+				log.G(global).WithError(unsupported.Cause()).Warnf("could not load snapshot plugin %q", name)
+				continue
+			}
+			return loadedPlugins, err
+		}
+		sc := sci.(plugin.SnapshotterConstructor)
+		loadedPlugins[name] = sc
+	}
+	return loadedPlugins, nil
+}
+
+func loadSnapshotters(loadedPlugins map[string]plugin.SnapshotterConstructor) (map[string]snapshot.Snapshotter, error) {
+	o := make(map[string]snapshot.Snapshotter, 0)
+	for _, x := range conf.Snapshotters {
+		if x.Name == "" {
+			return nil, errors.New("snapshotter name unset")
+		}
+		if x.Plugin == "" {
+			return nil, errors.Errorf("snapshotter plugin unset for %q", x.Name)
 		}
 
-		return sn.(snapshot.Snapshotter), nil
+		root := x.Root
+		if root == "" {
+			root = filepath.Join(conf.Root, "snapshot", x.Name)
+		}
+		// TODO: support x.Config
+		log.G(global).Infof("instantiating snapshotter plugin %q as %q, with root %q...", x.Plugin, x.Name, root)
+		sc, ok := loadedPlugins[x.Plugin]
+		if !ok {
+			log.G(global).Warnf("cannot instantiate snapshotter %q, because plugin %q is not loaded", x.Name, x.Plugin)
+			continue
+		}
+		sn, err := sc(x.Name, root)
+		if err != nil {
+			unsupported, ok := err.(*plugin.ErrUnsupported)
+			if ok {
+				log.G(global).WithError(unsupported.Cause()).Warnf("could not load snapshot plugin %q", x.Name)
+				continue
+			}
+			return nil, err
+		}
+		o[x.Name] = sn
 	}
-	return nil, fmt.Errorf("snapshotter not loaded: %v", conf.Snapshotter)
+	return o, nil
 }
 
 func newGRPCServer() *grpc.Server {
@@ -359,21 +400,25 @@ func newGRPCServer() *grpc.Server {
 	return s
 }
 
-func loadServices(runtimes map[string]plugin.Runtime, store content.Store, sn snapshot.Snapshotter, meta *bolt.DB) ([]plugin.Service, error) {
+func loadServices(runtimes map[string]plugin.Runtime, store content.Store, snapshotters map[string]snapshot.Snapshotter, meta *bolt.DB) ([]plugin.Service, error) {
 	var o []plugin.Service
 	for name, sr := range plugin.Registrations() {
 		if sr.Type != plugin.GRPCPlugin {
 			continue
 		}
 		log.G(global).Infof("loading grpc service plugin %q...", name)
+		if len(conf.Snapshotters) == 0 {
+			return nil, errors.New("config has no snapshotters section")
+		}
 		ic := &plugin.InitContext{
-			Root:        conf.Root,
-			State:       conf.State,
-			Context:     log.WithModule(global, fmt.Sprintf("service-%s", name)),
-			Runtimes:    runtimes,
-			Content:     store,
-			Meta:        meta,
-			Snapshotter: sn,
+			Root:                   conf.Root,
+			State:                  conf.State,
+			Context:                log.WithModule(global, fmt.Sprintf("service-%s", name)),
+			Runtimes:               runtimes,
+			Content:                store,
+			Meta:                   meta,
+			Snapshotters:           snapshotters,
+			DefaultSnapshotterName: conf.Snapshotters[0].Name,
 		}
 		if sr.Config != nil {
 			if err := conf.decodePlugin(name, sr.Config); err != nil {

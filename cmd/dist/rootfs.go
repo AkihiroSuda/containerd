@@ -30,7 +30,7 @@ var rootfsUnpackCommand = cli.Command{
 	Name:      "unpack",
 	Usage:     "unpack applies layers from a manifest to a snapshot",
 	ArgsUsage: "[flags] <digest>",
-	Flags:     []cli.Flag{},
+	Flags:     snapshotterFlags,
 	Action: func(clicontext *cli.Context) error {
 		ctx, cancel := appContext()
 		defer cancel()
@@ -64,7 +64,7 @@ var rootfsUnpackCommand = cli.Command{
 			log.G(ctx).Fatal(err)
 		}
 
-		snapshotter := snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(conn))
+		snapshotter := snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(conn), clicontext.String("snapshotter"))
 		applier := diffservice.NewDiffServiceFromClient(diffapi.NewDiffClient(conn))
 
 		chainID, err := rootfs.ApplyLayers(ctx, layers, snapshotter, applier)
@@ -82,7 +82,7 @@ var rootfsPrepareCommand = cli.Command{
 	Name:      "prepare",
 	Usage:     "prepare gets mount commands for digest",
 	ArgsUsage: "[flags] <digest> <target>",
-	Flags:     []cli.Flag{},
+	Flags:     snapshotterFlags,
 	Action: func(clicontext *cli.Context) error {
 		ctx, cancel := appContext()
 		defer cancel()
@@ -104,7 +104,7 @@ var rootfsPrepareCommand = cli.Command{
 			return err
 		}
 
-		snapshotter := snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(conn))
+		snapshotter := snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(conn), clicontext.String("snapshotter"))
 
 		mounts, err := snapshotter.Prepare(ctx, target, dgst.String())
 		if err != nil {

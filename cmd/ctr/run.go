@@ -72,6 +72,11 @@ var runCommand = cli.Command{
 			Name:  "checkpoint",
 			Usage: "provide the checkpoint digest to restore the container",
 		},
+		cli.StringFlag{
+			Name:  "snapshotter",
+			Usage: "snapshotter name (e.g. overlay, btrfs; empty value stands for the daemon default value)",
+			Value: "",
+		},
 	},
 	Action: func(context *cli.Context) error {
 		var (
@@ -79,8 +84,9 @@ var runCommand = cli.Command{
 			mounts      []mount.Mount
 			imageConfig ocispec.Image
 
-			ctx = gocontext.Background()
-			id  = context.String("id")
+			ctx             = gocontext.Background()
+			id              = context.String("id")
+			snapshotterName = context.String("snapshotter")
 		)
 		if id == "" {
 			return errors.New("container id must be provided")
@@ -108,7 +114,7 @@ var runCommand = cli.Command{
 			return err
 		}
 
-		snapshotter, err := getSnapshotter(context)
+		snapshotter, err := getSnapshotter(context, snapshotterName)
 		if err != nil {
 			return err
 		}

@@ -17,6 +17,13 @@ var deleteCommand = cli.Command{
 	Name:      "delete",
 	Usage:     "delete an existing container",
 	ArgsUsage: "CONTAINER",
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "snapshotter",
+			Usage: "snapshotter name (e.g. overlay, btrfs; empty value stands for the daemon default value)",
+			Value: "",
+		},
+	},
 	Action: func(context *cli.Context) error {
 		containers, err := getContainersService(context)
 		if err != nil {
@@ -27,7 +34,7 @@ var deleteCommand = cli.Command{
 			return err
 		}
 
-		snapshotter, err := getSnapshotter(context)
+		snapshotter, err := getSnapshotter(context, context.String("snapshotter"))
 		if err != nil {
 			return err
 		}

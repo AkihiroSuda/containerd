@@ -33,7 +33,7 @@ command. As part of this process, we do the following:
 2. Prepare the snapshot filesystem with the pulled resources.
 3. Register metadata for the image.
 `,
-	Flags: registryFlags,
+	Flags: append(registryFlags, snapshotterFlags...),
 	Action: func(clicontext *cli.Context) error {
 		var (
 			ref = clicontext.Args().First()
@@ -120,7 +120,7 @@ command. As part of this process, we do the following:
 			if err != nil {
 				log.G(ctx).Fatal(err)
 			}
-			snapshotter := snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(conn))
+			snapshotter := snapshotservice.NewSnapshotterFromClient(snapshotapi.NewSnapshotClient(conn), clicontext.String("snapshotter"))
 			applier := diffservice.NewDiffServiceFromClient(diffapi.NewDiffClient(conn))
 
 			log.G(ctx).Info("unpacking rootfs")

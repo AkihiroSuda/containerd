@@ -19,7 +19,8 @@ func init() {
 	plugin.Register("snapshot-naive", &plugin.Registration{
 		Type: plugin.SnapshotPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
-			return NewSnapshotter(filepath.Join(ic.Root, "snapshot", "naive"))
+			var constructor plugin.SnapshotterConstructor = NewSnapshotter
+			return constructor, nil
 		},
 	})
 }
@@ -31,7 +32,7 @@ type snapshotter struct {
 
 // NewSnapshotter returns a Snapshotter which copies layers on the underlying
 // file system. A metadata file is stored under the root.
-func NewSnapshotter(root string) (snapshot.Snapshotter, error) {
+func NewSnapshotter(name, root string) (snapshot.Snapshotter, error) {
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return nil, err
 	}

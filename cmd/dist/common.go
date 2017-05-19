@@ -47,6 +47,14 @@ var registryFlags = []cli.Flag{
 	},
 }
 
+var snapshotterFlags = []cli.Flag{
+	cli.StringFlag{
+		Name:  "snapshotter",
+		Usage: "snapshotter name (e.g. overlay, btrfs; empty value stands for the daemon default value)",
+		Value: "",
+	},
+}
+
 func resolveContentStore(context *cli.Context) (content.Store, error) {
 	root := filepath.Join(context.GlobalString("root"), "content")
 	if !filepath.IsAbs(root) {

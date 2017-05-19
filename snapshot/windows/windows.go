@@ -20,7 +20,8 @@ func init() {
 	plugin.Register("snapshot-windows", &plugin.Registration{
 		Type: plugin.SnapshotPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
-			return NewSnapshotter(filepath.Join(ic.Root, "snapshot", "windows"))
+			var constructor plugin.SnapshotterConstructor = NewSnapshotter
+			return constructor, nil
 		},
 	})
 }
@@ -29,7 +30,7 @@ type Snapshotter struct {
 	root string
 }
 
-func NewSnapshotter(root string) (snapshot.Snapshotter, error) {
+func NewSnapshotter(name, root string) (snapshot.Snapshotter, error) {
 	return &Snapshotter{
 		root: root,
 	}, nil
