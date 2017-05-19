@@ -18,6 +18,11 @@ var snapshotCommand = cli.Command{
 			Name:  "id",
 			Usage: "id of the container",
 		},
+		cli.StringFlag{
+			Name:  "snapshotter",
+			Usage: "snapshotter name (e.g. overlay, btrfs; empty value stands for the daemon default value)",
+			Value: "",
+		},
 	},
 	Action: func(clicontext *cli.Context) error {
 		id := clicontext.String("id")
@@ -25,7 +30,7 @@ var snapshotCommand = cli.Command{
 			return errors.New("container id must be provided")
 		}
 
-		snapshotter, err := getSnapshotter(clicontext)
+		snapshotter, err := getSnapshotter(clicontext, clicontext.String("snapshotter"))
 		if err != nil {
 			return err
 		}

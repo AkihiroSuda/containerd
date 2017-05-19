@@ -13,7 +13,6 @@ import (
 	"github.com/containerd/containerd/archive/compression"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/plugin"
-	"github.com/containerd/containerd/snapshot"
 	digest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
@@ -25,20 +24,18 @@ func init() {
 	plugin.Register("diff-grpc", &plugin.Registration{
 		Type: plugin.GRPCPlugin,
 		Init: func(ic *plugin.InitContext) (interface{}, error) {
-			return newService(ic.Content, ic.Snapshotter)
+			return newService(ic.Content)
 		},
 	})
 }
 
 type service struct {
-	store       content.Store
-	snapshotter snapshot.Snapshotter
+	store content.Store
 }
 
-func newService(store content.Store, snapshotter snapshot.Snapshotter) (*service, error) {
+func newService(store content.Store) (*service, error) {
 	return &service{
-		store:       store,
-		snapshotter: snapshotter,
+		store: store,
 	}, nil
 }
 

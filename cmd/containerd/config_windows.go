@@ -16,6 +16,6 @@ func defaultConfig() *config {
 			Level:   "info",
 			Address: `\\.\pipe\containerd-debug`,
 		},
-		Snapshotter: "windows",
+		DefaultSnapshotter: "snapshot-windows",
 	}
 }

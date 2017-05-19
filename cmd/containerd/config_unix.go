@@ -13,6 +13,6 @@ func defaultConfig() *config {
 			Level:   "info",
 			Address: "/run/containerd/debug.sock",
 		},
-		Snapshotter: "naive",
+		DefaultSnapshotter: "snapshot-naive",
 	}
 }

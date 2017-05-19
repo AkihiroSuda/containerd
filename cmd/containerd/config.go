@@ -47,8 +47,8 @@ type config struct {
 	Debug debug `toml:"debug"`
 	// Metrics and monitoring settings
 	Metrics metricsConfig `toml:"metrics"`
-	// Snapshotter specifies which snapshot driver to use
-	Snapshotter string `toml:"snapshotter"`
+	// DefaultSnapshotter specifies which snapshot driver to use by default
+	DefaultSnapshotter string `toml:"default_snapshotter"`
 	// Plugins provides plugin specific configuration for the initialization of a plugin
 	Plugins map[string]toml.Primitive `toml:"plugins"`
 	// Enable containerd as a subreaper

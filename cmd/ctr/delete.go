@@ -2,6 +2,7 @@ package main
 
 import (
 	gocontext "context"
+	"fmt"
 
 	"github.com/containerd/containerd/api/services/execution"
 	"github.com/pkg/errors"
@@ -17,10 +18,6 @@ var deleteCommand = cli.Command{
 		if err != nil {
 			return err
 		}
-		snapshotter, err := getSnapshotter(context)
-		if err != nil {
-			return err
-		}
 		id := context.Args().First()
 		if id == "" {
 			return errors.New("container id must be provided")
@@ -33,9 +30,7 @@ var deleteCommand = cli.Command{
 			return errors.Wrap(err, "failed to delete container")
 		}
 
-		if err := snapshotter.Remove(ctx, id); err != nil {
-			return errors.Wrapf(err, "failed to remove snapshot %q", id)
-		}
+		fmt.Printf("Please remove snapshot %q manually (TODO: automatically introspect the current snapshotter and remove the snapshot accordingly)", id)
 
 		return nil
 	},
