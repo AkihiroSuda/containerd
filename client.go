@@ -3,6 +3,7 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	versionservice "github.com/containerd/containerd/api/services/version"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
@@ -450,4 +452,69 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 		Version:  response.Version,
 		Revision: response.Revision,
 	}, nil
+}
+
+type ImageFormat string
+
+const (
+	OCIImageFormat     ImageFormat = "oci"
+	DefaultImageFormat             = OCIImageFormat
+)
+
+type ImportSpec struct {
+	Path string
+	// TODO: add support for tar reader?
+}
+
+type ExportSpec struct {
+	ImageFormat
+	// TODO: add a field for image spec version
+	Path string
+	// TODO: add support for tar writer?
+}
+
+func (c *Client) Import(ctx context.Context, ref string, sp ImportSpec) (Image, error) {
+	return nil, errors.New("client.Import is not implemented")
+}
+
+func (c *Client) Export(ctx context.Context, desc ocispec.Descriptor, sp ExportSpec) error {
+	imageFormat := sp.ImageFormat
+	if imageFormat == "" {
+		imageFormat = DefaultImageFormat
+	}
+	if imageFormat != OCIImageFormat {
+		return errors.Errorf("unsupported format: %q", imageFormat)
+	}
+
+	if err := oci.Init(sp.Path, ""); err != nil {
+		return err
+	}
+	cs := c.ContentStore()
+	exportHandler := images.HandlerFunc(func(ctx context.Context, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+		r, err := cs.Reader(ctx, desc.Digest)
+		if err != nil {
+			return nil, err
+		}
+		w, err := oci.NewBlobWriter(sp.Path, desc.Digest.Algorithm())
+		if err != nil {
+			return nil, err
+		}
+		if _, err = io.Copy(w, r); err != nil {
+			return nil, err
+		}
+		if err = w.Close(); err != nil {
+			return nil, err
+		}
+
+		if d := w.Digest(); d != desc.Digest {
+			return nil, errors.Errorf("descriptor has digest %s, written %s", desc.Digest, d)
+		}
+		return nil, nil
+	})
+	handlers := images.Handlers(
+		images.ChildrenHandler(cs),
+		exportHandler,
+	)
+
+	return images.Dispatch(ctx, handlers, desc)
 }
