@@ -18,7 +18,7 @@ func TestInitError(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "oci")
 	assert.Nil(t, err)
 	defer os.RemoveAll(tmp)
-	err = Init(tmp, "")
+	err = Init(Directory(tmp), InitOpts{})
 	assert.Error(t, err, "file exists")
 }
 
@@ -26,8 +26,9 @@ func TestInit(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "oci")
 	assert.Nil(t, err)
 	defer os.RemoveAll(tmp)
-	img := filepath.Join(tmp, "foo")
-	err = Init(img, "")
+	imgDir := filepath.Join(tmp, "foo")
+	img := Directory(imgDir)
+	err = Init(img, InitOpts{})
 	assert.Nil(t, err)
 	ociLayout, err := json.Marshal(spec.ImageLayout{Version: spec.ImageLayoutVersion})
 	assert.Nil(t, err)
@@ -36,7 +37,7 @@ func TestInit(t *testing.T) {
 		fstest.CreateDir("/foo", 0755),
 		fstest.CreateDir("/foo/blobs", 0755),
 		fstest.CreateDir("/foo/blobs/"+string(digest.Canonical), 0755),
-		fstest.CreateFile("/foo/oci-layout", ociLayout, 0644),
+		fstest.CreateFile("/foo/oci-layout", ociLayout, 0444),
 		fstest.CreateFile("/foo/index.json", indexJSON, 0644),
 	)
 	err = fstest.CheckDirectoryEqualWithApplier(tmp, applier)
@@ -47,16 +48,18 @@ func TestWriteReadDeleteBlob(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "oci")
 	assert.Nil(t, err)
 	defer os.RemoveAll(tmp)
-	img := filepath.Join(tmp, "foo")
-	err = Init(img, "")
+	imgDir := filepath.Join(tmp, "foo")
+	img := Directory(imgDir)
+	err = Init(img, InitOpts{})
 	assert.Nil(t, err)
 	testBlob := []byte("test")
 	// Write
 	d, err := WriteBlob(img, testBlob)
+	assert.Nil(t, err)
 	applier := fstest.Apply(
 		fstest.CreateFile("/"+d.Hex(), testBlob, 0444),
 	)
-	err = fstest.CheckDirectoryEqualWithApplier(filepath.Join(img, "blobs", string(digest.Canonical)), applier)
+	err = fstest.CheckDirectoryEqualWithApplier(filepath.Join(imgDir, "blobs", string(digest.Canonical)), applier)
 	assert.Nil(t, err)
 	// Read
 	b, err := ReadBlob(img, d)
@@ -66,7 +69,7 @@ func TestWriteReadDeleteBlob(t *testing.T) {
 	err = DeleteBlob(img, d)
 	assert.Nil(t, err)
 	applier = fstest.Apply()
-	err = fstest.CheckDirectoryEqualWithApplier(filepath.Join(img, "blobs", string(digest.Canonical)), applier)
+	err = fstest.CheckDirectoryEqualWithApplier(filepath.Join(imgDir, "blobs", string(digest.Canonical)), applier)
 	assert.Nil(t, err)
 }
 
@@ -74,8 +77,9 @@ func TestBlobWriter(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "oci")
 	assert.Nil(t, err)
 	defer os.RemoveAll(tmp)
-	img := filepath.Join(tmp, "foo")
-	err = Init(img, "")
+	imgDir := filepath.Join(tmp, "foo")
+	img := Directory(imgDir)
+	err = Init(img, InitOpts{})
 	assert.Nil(t, err)
 	testBlob := []byte("test")
 	w, err := NewBlobWriter(img, digest.Canonical)
@@ -83,7 +87,7 @@ func TestBlobWriter(t *testing.T) {
 	assert.Nil(t, err)
 	// blob is not written until closing
 	applier := fstest.Apply()
-	err = fstest.CheckDirectoryEqualWithApplier(filepath.Join(img, "blobs", string(digest.Canonical)), applier)
+	err = fstest.CheckDirectoryEqualWithApplier(filepath.Join(imgDir, "blobs", string(digest.Canonical)), applier)
 	// digest is unavailable until closing
 	assert.Panics(t, func() { w.Digest() })
 	// close and calculate the digest
@@ -93,7 +97,7 @@ func TestBlobWriter(t *testing.T) {
 	applier = fstest.Apply(
 		fstest.CreateFile("/"+d.Hex(), testBlob, 0444),
 	)
-	err = fstest.CheckDirectoryEqualWithApplier(filepath.Join(img, "blobs", string(digest.Canonical)), applier)
+	err = fstest.CheckDirectoryEqualWithApplier(filepath.Join(imgDir, "blobs", string(digest.Canonical)), applier)
 	assert.Nil(t, err)
 }
 
@@ -101,8 +105,9 @@ func TestIndex(t *testing.T) {
 	tmp, err := ioutil.TempDir("", "oci")
 	assert.Nil(t, err)
 	defer os.RemoveAll(tmp)
-	img := filepath.Join(tmp, "foo")
-	err = Init(img, "")
+	imgDir := filepath.Join(tmp, "foo")
+	img := Directory(imgDir)
+	err = Init(img, InitOpts{})
 	assert.Nil(t, err)
 	descs := []spec.Descriptor{
 		{
