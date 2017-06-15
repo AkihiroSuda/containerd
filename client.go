@@ -3,6 +3,7 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/plugin"
+	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/containerd/containerd/remotes/docker/schema1"
@@ -494,4 +496,131 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 		Version:  response.Version,
 		Revision: response.Revision,
 	}, nil
+}
+
+type imageRepresentation string
+
+const (
+	ociImageDirectoryRepresentation imageRepresentation = "oci+directory"
+	ociImageTarRepresentation       imageRepresentation = "oci+tar"
+)
+
+type importOpts struct {
+	representation imageRepresentation
+	path           string
+	reader         io.Reader
+	refObject      string
+}
+
+type ImportOpt func(c *importOpts) error
+
+func WithOCIDirectoryImportation(path string) ImportOpt {
+	return func(c *importOpts) error {
+		if c.representation != "" {
+			return errors.New("representation already set")
+		}
+		c.representation = ociImageDirectoryRepresentation
+		c.path = path
+		return nil
+	}
+}
+
+func WithOCITarImportation(reader io.Reader) ImportOpt {
+	return func(c *importOpts) error {
+		if c.representation != "" {
+			return errors.New("representation already set")
+		}
+		c.representation = ociImageTarRepresentation
+		c.reader = reader
+		return nil
+	}
+}
+
+// WithRefObject specifies the ref object to import.
+// If refObject is empty, it is copied from the ref argument of Import().
+func WithRefObject(refObject string) ImportOpt {
+	return func(c *importOpts) error {
+		c.refObject = refObject
+		return nil
+	}
+}
+
+func (c *Client) Import(ctx context.Context, ref string, opts ...ImportOpt) (Image, error) {
+	var iopts importOpts
+	for _, o := range opts {
+		if err := o(&iopts); err != nil {
+			return nil, err
+		}
+	}
+	if iopts.refObject == "" {
+		refSpec, err := reference.Parse(ref)
+		if err != nil {
+			return nil, err
+		}
+		iopts.refObject = refSpec.Object
+	}
+	switch iopts.representation {
+	case ociImageDirectoryRepresentation:
+		return c.importFromOCIDirectory(ctx, ref, iopts)
+	case ociImageTarRepresentation:
+		return c.importFromOCITar(ctx, ref, iopts)
+	default:
+		return nil, errors.Errorf("unsupported representation: %q", iopts.representation)
+	}
+}
+
+type exportOpts struct {
+	representation imageRepresentation
+	path           string
+	writer         io.Writer
+}
+
+type ExportOpt func(c *exportOpts) error
+
+// WithOCIDirectoryExportation returns ExportOpt for local OCI directory.
+// Path must be a valid path to non-existing or existing OCI directory.
+// If the directory exists, the exported image will be added to the existing image index.
+func WithOCIDirectoryExportation(path string) ExportOpt {
+	return func(c *exportOpts) error {
+		if c.representation != "" {
+			return errors.New("representation already set")
+		}
+		c.representation = ociImageDirectoryRepresentation
+		c.path = path
+		return nil
+	}
+}
+
+func WithOCITarExportation(writer io.Writer) ExportOpt {
+	return func(c *exportOpts) error {
+		if c.representation != "" {
+			return errors.New("representation already set")
+		}
+		c.representation = ociImageTarRepresentation
+		c.writer = writer
+		return nil
+	}
+}
+
+// TODO: add WithRawDirectoryExportation maybe? (raw rootfs directory)
+
+// TODO: add WithMediaTypeTranslation that transforms media types according to the format.
+// e.g. application/vnd.docker.image.rootfs.diff.tar.gzip
+//      -> application/vnd.oci.image.layer.v1.tar+gzip
+
+func (c *Client) Export(ctx context.Context, desc ocispec.Descriptor, opts ...ExportOpt) error {
+	var eopts exportOpts
+	for _, o := range opts {
+		if err := o(&eopts); err != nil {
+			return err
+		}
+	}
+	switch eopts.representation {
+	case ociImageDirectoryRepresentation:
+		return c.exportToOCIDirectory(ctx, desc, eopts)
+	case ociImageTarRepresentation:
+		return c.exportToOCITar(ctx, desc, eopts)
+	default:
+		return errors.Errorf("unsupported representation: %q", eopts.representation)
+	}
 }
