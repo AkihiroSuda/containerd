@@ -77,6 +77,7 @@ distribution tool
 		rootfsCommand,
 		pushCommand,
 		pushObjectCommand,
+		exportCommand,
 	}
 	app.Before = func(context *cli.Context) error {
 		if context.GlobalBool("debug") {
