@@ -3,9 +3,11 @@ package containerd
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -20,6 +22,7 @@ import (
 	versionservice "github.com/containerd/containerd/api/services/version"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
@@ -450,4 +453,109 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 		Version:  response.Version,
 		Revision: response.Revision,
 	}, nil
+}
+
+type imageFormat string
+
+const (
+	ociImageFormat imageFormat = "oci"
+)
+
+type importOpts struct {
+	path string
+}
+
+type ImportOpt func(c *importOpts) error
+
+// TODO: add support for tar writer?
+type exportOpts struct {
+	format              imageFormat
+	path                string
+	transformMediaTypes bool
+}
+
+type ExportOpt func(c *exportOpts) error
+
+// WithOCIDirectoryExportation returns ExportOpt for local OCI directory.
+// Path must be a valid path to non-existing or existing OCI directory.
+// If the directory exists, the exported image will be added to the existing image index.
+func WithOCIDirectoryExportation(path string) ExportOpt {
+	return func(c *exportOpts) error {
+		c.format = ociImageFormat
+		c.path = path
+		return nil
+	}
+}
+
+// TODO: add WithOCITarExportation?
+// TODO: add WithRawDirectoryExportation maybe? (raw rootfs directory)
+
+// WithMediaTypeTranslation transforms media types according to the format.
+// e.g. application/vnd.docker.image.rootfs.diff.tar.gzip
+//      -> application/vnd.oci.image.layer.v1.tar+gzip
+func WithMediaTypeTranslation(b bool) ExportOpt {
+	return func(c *exportOpts) error {
+		c.transformMediaTypes = b
+		return nil
+	}
+}
+
+func (c *Client) Import(ctx context.Context, ref string, opts ...ImportOpt) (Image, error) {
+	return nil, errors.New("client.Import is not implemented")
+}
+
+func (c *Client) Export(ctx context.Context, desc ocispec.Descriptor, opts ...ExportOpt) error {
+	var eopts exportOpts
+	for _, o := range opts {
+		if err := o(&eopts); err != nil {
+			return err
+		}
+	}
+	if eopts.format != ociImageFormat {
+		return errors.Errorf("unsupported format: %q", eopts.format)
+	}
+	if eopts.transformMediaTypes {
+		return errors.New("transformMediaTypes is not implemented yet")
+	}
+
+	if _, stErr := os.Stat(eopts.path); stErr != nil {
+		if os.IsNotExist(stErr) {
+			if err := oci.Init(eopts.path, ""); err != nil {
+				return err
+			}
+		} else {
+			return stErr
+		}
+	}
+	cs := c.ContentStore()
+	exportHandler := images.HandlerFunc(func(ctx context.Context, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+		r, err := cs.Reader(ctx, desc.Digest)
+		if err != nil {
+			return nil, err
+		}
+		w, err := oci.NewBlobWriter(eopts.path, desc.Digest.Algorithm())
+		if err != nil {
+			return nil, err
+		}
+		if _, err = io.Copy(w, r); err != nil {
+			return nil, err
+		}
+		if err = w.Close(); err != nil {
+			return nil, err
+		}
+
+		if d := w.Digest(); d != desc.Digest {
+			return nil, errors.Errorf("descriptor has digest %s, written %s", desc.Digest, d)
+		}
+		return nil, nil
+	})
+	handlers := images.Handlers(
+		images.ChildrenHandler(cs),
+		exportHandler,
+	)
+
+	if err := images.Dispatch(ctx, handlers, desc); err != nil {
+		return err
+	}
+	return oci.PutManifestDescriptorToIndex(eopts.path, desc)
 }
