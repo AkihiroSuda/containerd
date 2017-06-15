@@ -1,11 +1,14 @@
 package containerd
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -21,6 +24,7 @@ import (
 	versionservice "github.com/containerd/containerd/api/services/version/v1"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
@@ -33,6 +37,7 @@ import (
 	"github.com/containerd/containerd/snapshot"
 	pempty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/opencontainers/image-spec/identity"
+	ocispecs "github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -494,4 +499,145 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 		Version:  response.Version,
 		Revision: response.Revision,
 	}, nil
+}
+
+type imageRepresentation string
+
+const (
+	ociImageDirectoryRepresentation imageRepresentation = "oci+directory"
+	ociImageTarRepresentation       imageRepresentation = "oci+tar"
+)
+
+type importOpts struct {
+	path string
+}
+
+type ImportOpt func(c *importOpts) error
+
+type exportOpts struct {
+	representation imageRepresentation
+	path           string
+	writer         io.Writer
+}
+
+type ExportOpt func(c *exportOpts) error
+
+// WithOCIDirectoryExportation returns ExportOpt for local OCI directory.
+// Path must be a valid path to non-existing or existing OCI directory.
+// If the directory exists, the exported image will be added to the existing image index.
+func WithOCIDirectoryExportation(path string) ExportOpt {
+	return func(c *exportOpts) error {
+		c.representation = ociImageDirectoryRepresentation
+		c.path = path
+		return nil
+	}
+}
+
+func WithOCITarExportation(writer io.Writer) ExportOpt {
+	return func(c *exportOpts) error {
+		c.representation = ociImageTarRepresentation
+		c.writer = writer
+		return nil
+	}
+}
+
+// TODO: add WithRawDirectoryExportation maybe? (raw rootfs directory)
+
+// TODO: add WithMediaTypeTranslation that transforms media types according to the format.
+// e.g. application/vnd.docker.image.rootfs.diff.tar.gzip
+//      -> application/vnd.oci.image.layer.v1.tar+gzip
+
+func (c *Client) Import(ctx context.Context, ref string, opts ...ImportOpt) (Image, error) {
+	return nil, errors.New("client.Import is not implemented")
+}
+
+func (c *Client) Export(ctx context.Context, desc ocispec.Descriptor, opts ...ExportOpt) error {
+	var eopts exportOpts
+	for _, o := range opts {
+		if err := o(&eopts); err != nil {
+			return err
+		}
+	}
+	switch eopts.representation {
+	case ociImageDirectoryRepresentation:
+		return c.exportToOCIDirectory(ctx, desc, eopts)
+	case ociImageTarRepresentation:
+		return c.exportToOCITar(ctx, desc, eopts)
+	default:
+		return errors.Errorf("unsupported representation: %q", eopts.representation)
+	}
+}
+
+func (c *Client) exportToOCIDirectory(ctx context.Context, desc ocispec.Descriptor, eopts exportOpts) error {
+	img := oci.Directory(eopts.path)
+	if _, stErr := os.Stat(eopts.path); stErr != nil {
+		if os.IsNotExist(stErr) {
+			if err := oci.Init(img, oci.InitOpts{}); err != nil {
+				return err
+			}
+		} else {
+			return stErr
+		}
+	}
+	cs := c.ContentStore()
+	handlers := images.Handlers(
+		images.ChildrenHandler(cs),
+		exportHandler(cs, img),
+	)
+	if err := images.Dispatch(ctx, handlers, desc); err != nil {
+		return err
+	}
+	return oci.PutManifestDescriptorToIndex(img, desc)
+}
+
+func (c *Client) exportToOCITar(ctx context.Context, desc ocispec.Descriptor, eopts exportOpts) error {
+	tw := tar.NewWriter(eopts.writer)
+	img := oci.Tar(tw)
+
+	// For tar, we defer creating index until end of the function.
+	if err := oci.Init(img, oci.InitOpts{SkipCreateIndex: true}); err != nil {
+		return err
+	}
+	cs := c.ContentStore()
+	handlers := images.Handlers(
+		images.ChildrenHandler(cs),
+		exportHandler(cs, img),
+	)
+	if err := images.Dispatch(ctx, handlers, desc); err != nil {
+		return err
+	}
+	// For tar, we don't use oci.PutManifestDescriptorToIndex which allows appending desc to existing index.json
+	// but requires img to support Reader().
+	return oci.WriteIndex(img,
+		ocispec.Index{
+			Versioned: ocispecs.Versioned{
+				SchemaVersion: 2,
+			},
+			Manifests: []ocispec.Descriptor{desc},
+		},
+	)
+}
+
+func exportHandler(cs content.Store, img oci.ImageDriver) images.HandlerFunc {
+	return func(ctx context.Context, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
+		r, err := cs.Reader(ctx, desc.Digest)
+		if err != nil {
+			return nil, err
+		}
+		w, err := oci.NewBlobWriter(img, desc.Digest.Algorithm())
+		if err != nil {
+			return nil, err
+		}
+		if _, err = io.Copy(w, r); err != nil {
+			return nil, err
+		}
+		if err = w.Close(); err != nil {
+			return nil, err
+		}
+
+		if d := w.Digest(); d != desc.Digest {
+			return nil, errors.Errorf("descriptor has digest %s, written %s", desc.Digest, d)
+		}
+		return nil, nil
+	}
 }
