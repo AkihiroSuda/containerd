@@ -1,14 +1,12 @@
 package containerd
 
 import (
-	"archive/tar"
 	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -24,8 +22,8 @@ import (
 	versionservice "github.com/containerd/containerd/api/services/version/v1"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/plugin"
+	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/containerd/containerd/remotes/docker/schema1"
@@ -37,7 +35,6 @@ import (
 	"github.com/containerd/containerd/snapshot"
 	pempty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/opencontainers/image-spec/identity"
-	ocispecs "github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -509,10 +506,67 @@ const (
 )
 
 type importOpts struct {
-	path string
+	representation imageRepresentation
+	path           string
+	reader         io.Reader
+	refObject      string
 }
 
 type ImportOpt func(c *importOpts) error
+
+func WithOCIDirectoryImportation(path string) ImportOpt {
+	return func(c *importOpts) error {
+		if c.representation != "" {
+			return errors.New("representation already set")
+		}
+		c.representation = ociImageDirectoryRepresentation
+		c.path = path
+		return nil
+	}
+}
+
+func WithOCITarImportation(reader io.Reader) ImportOpt {
+	return func(c *importOpts) error {
+		if c.representation != "" {
+			return errors.New("representation already set")
+		}
+		c.representation = ociImageTarRepresentation
+		c.reader = reader
+		return nil
+	}
+}
+
+// WithRefObject specifies the ref object to import.
+// If refObject is empty, it is copied from the ref argument of Import().
+func WithRefObject(refObject string) ImportOpt {
+	return func(c *importOpts) error {
+		c.refObject = refObject
+		return nil
+	}
+}
+
+func (c *Client) Import(ctx context.Context, ref string, opts ...ImportOpt) (Image, error) {
+	var iopts importOpts
+	for _, o := range opts {
+		if err := o(&iopts); err != nil {
+			return nil, err
+		}
+	}
+	if iopts.refObject == "" {
+		refSpec, err := reference.Parse(ref)
+		if err != nil {
+			return nil, err
+		}
+		iopts.refObject = refSpec.Object
+	}
+	switch iopts.representation {
+	case ociImageDirectoryRepresentation:
+		return c.importFromOCIDirectory(ctx, ref, iopts)
+	// TODO: implement ociImageTarRepresentation:
+	default:
+		return nil, errors.Errorf("unsupported representation: %q", iopts.representation)
+	}
+}
 
 type exportOpts struct {
 	representation imageRepresentation
@@ -527,6 +581,9 @@ type ExportOpt func(c *exportOpts) error
 // If the directory exists, the exported image will be added to the existing image index.
 func WithOCIDirectoryExportation(path string) ExportOpt {
 	return func(c *exportOpts) error {
+		if c.representation != "" {
+			return errors.New("representation already set")
+		}
 		c.representation = ociImageDirectoryRepresentation
 		c.path = path
 		return nil
@@ -535,6 +592,9 @@ func WithOCIDirectoryExportation(path string) ExportOpt {
 
 func WithOCITarExportation(writer io.Writer) ExportOpt {
 	return func(c *exportOpts) error {
+		if c.representation != "" {
+			return errors.New("representation already set")
+		}
 		c.representation = ociImageTarRepresentation
 		c.writer = writer
 		return nil
@@ -546,10 +606,6 @@ func WithOCITarExportation(writer io.Writer) ExportOpt {
 // TODO: add WithMediaTypeTranslation that transforms media types according to the format.
 // e.g. application/vnd.docker.image.rootfs.diff.tar.gzip
 //      -> application/vnd.oci.image.layer.v1.tar+gzip
-
-func (c *Client) Import(ctx context.Context, ref string, opts ...ImportOpt) (Image, error) {
-	return nil, errors.New("client.Import is not implemented")
-}
 
 func (c *Client) Export(ctx context.Context, desc ocispec.Descriptor, opts ...ExportOpt) error {
 	var eopts exportOpts
@@ -565,79 +621,5 @@ func (c *Client) Export(ctx context.Context, desc ocispec.Descriptor, opts ...Ex
 		return c.exportToOCITar(ctx, desc, eopts)
 	default:
 		return errors.Errorf("unsupported representation: %q", eopts.representation)
-	}
-}
-
-func (c *Client) exportToOCIDirectory(ctx context.Context, desc ocispec.Descriptor, eopts exportOpts) error {
-	img := oci.Directory(eopts.path)
-	if _, stErr := os.Stat(eopts.path); stErr != nil {
-		if os.IsNotExist(stErr) {
-			if err := oci.Init(img, oci.InitOpts{}); err != nil {
-				return err
-			}
-		} else {
-			return stErr
-		}
-	}
-	cs := c.ContentStore()
-	handlers := images.Handlers(
-		images.ChildrenHandler(cs),
-		exportHandler(cs, img),
-	)
-	if err := images.Dispatch(ctx, handlers, desc); err != nil {
-		return err
-	}
-	return oci.PutManifestDescriptorToIndex(img, desc)
-}
-
-func (c *Client) exportToOCITar(ctx context.Context, desc ocispec.Descriptor, eopts exportOpts) error {
-	tw := tar.NewWriter(eopts.writer)
-	img := oci.Tar(tw)
-
-	// For tar, we defer creating index until end of the function.
-	if err := oci.Init(img, oci.InitOpts{SkipCreateIndex: true}); err != nil {
-		return err
-	}
-	cs := c.ContentStore()
-	handlers := images.Handlers(
-		images.ChildrenHandler(cs),
-		exportHandler(cs, img),
-	)
-	if err := images.Dispatch(ctx, handlers, desc); err != nil {
-		return err
-	}
-	// For tar, we don't use oci.PutManifestDescriptorToIndex which allows appending desc to existing index.json
-	// but requires img to support Reader().
-	return oci.WriteIndex(img,
-		ocispec.Index{
-			Versioned: ocispecs.Versioned{
-				SchemaVersion: 2,
-			},
-			Manifests: []ocispec.Descriptor{desc},
-		},
-	)
-}
-
-func exportHandler(cs content.Store, img oci.ImageDriver) images.HandlerFunc {
-	return func(ctx context.Context, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
-		r, err := cs.Reader(ctx, desc.Digest)
-		if err != nil {
-			return nil, err
-		}
-		w, err := oci.NewBlobWriter(img, desc.Digest.Algorithm())
-		if err != nil {
-			return nil, err
-		}
-		if _, err = io.Copy(w, r); err != nil {
-			return nil, err
-		}
-		if err = w.Close(); err != nil {
-			return nil, err
-		}
-
-		if d := w.Digest(); d != desc.Digest {
-			return nil, errors.Errorf("descriptor has digest %s, written %s", desc.Digest, d)
-		}
-		return nil, nil
 	}
 }

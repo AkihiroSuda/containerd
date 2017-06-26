@@ -56,6 +56,7 @@ func (d *tarDriver) Remove(path string) error {
 }
 
 func (d *tarDriver) Reader(path string) (io.ReadCloser, error) {
+	// because tar does not support random access
 	return nil, errors.New("Tar does not support Reader")
 }
 

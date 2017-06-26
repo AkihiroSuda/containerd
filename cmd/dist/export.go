@@ -15,7 +15,7 @@ import (
 var exportCommand = cli.Command{
 	Name:      "export",
 	Usage:     "export an image",
-	ArgsUsage: "[flags] <directory> <local>",
+	ArgsUsage: "[flags] <out> <image>",
 	Description: `Export an image
 `,
 	Flags: []cli.Flag{
@@ -84,7 +84,7 @@ var exportCommand = cli.Command{
 		case "oci+tar":
 			var w io.Writer
 			if out == "-" {
-				w = os.Stderr
+				w = os.Stdout
 			} else {
 				w, err = os.Create(out)
 				if err != nil {
