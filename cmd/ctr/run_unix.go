@@ -20,7 +20,7 @@ import (
 
 func init() {
 	runCommand.Flags = append(runCommand.Flags, cli.BoolFlag{
-		Name:  "unmanaged-rootfs",
+		Name:  "rootfs",
 		Usage: "Use custom rootfs that is not managed by containerd snapshotter.",
 	})
 }
@@ -83,8 +83,8 @@ func newContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 		cOpts []containerd.NewContainerOpts
 	)
 	cOpts = append(cOpts, containerd.WithContainerLabels(labelArgs(context.StringSlice("label"))))
-	if context.Bool("unmanaged-rootfs") {
-		opts = append(opts, containerd.WithUnmanagedRootFS(ref, context.Bool("readonly")))
+	if context.Bool("rootfs") {
+		opts = append(opts, containerd.WithRootFS(ref, context.Bool("readonly")))
 	} else {
 		image, err := client.GetImage(ctx, ref)
 		if err != nil {
@@ -93,9 +93,9 @@ func newContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 		opts = append(opts, containerd.WithImageConfig(ctx, image))
 		cOpts = append(cOpts, containerd.WithImage(image))
 		if context.Bool("readonly") {
-			cOpts = append(cOpts, containerd.WithNewReadonlyRootFS(id, image))
+			cOpts = append(cOpts, containerd.WithReadonlyImageSnapshotRootFS(id, image))
 		} else {
-			cOpts = append(cOpts, containerd.WithNewRootFS(id, image))
+			cOpts = append(cOpts, containerd.WithImageSnapshotRootFS(id, image))
 		}
 		cOpts = append(cOpts, containerd.WithSnapshotter(context.String("snapshotter")))
 	}

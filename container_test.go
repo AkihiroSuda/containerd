@@ -99,7 +99,7 @@ func TestContainerStart(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -167,7 +167,7 @@ func TestContainerOutput(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -236,7 +236,7 @@ func TestContainerExec(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -328,7 +328,7 @@ func TestContainerProcesses(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -398,7 +398,7 @@ func TestContainerCloseIO(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -479,7 +479,7 @@ func TestContainerAttach(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -601,7 +601,7 @@ func TestDeleteRunningContainer(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImage(image), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImage(image), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -666,7 +666,7 @@ func TestContainerKill(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImage(image), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImage(image), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -736,7 +736,7 @@ func TestContainerUpdate(t *testing.T) {
 	spec.Linux.Resources.Memory = &specs.LinuxMemory{
 		Limit: &limit,
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -821,7 +821,7 @@ func TestContainerNoBinaryExists(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return
@@ -856,7 +856,7 @@ func TestContainerExecNoBinaryExists(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithNewRootFS(id, image))
+	container, err := client.NewContainer(ctx, id, WithSpec(spec), WithImageSnapshotRootFS(id, image))
 	if err != nil {
 		t.Error(err)
 		return

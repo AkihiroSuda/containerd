@@ -276,8 +276,8 @@ func WithImageConfig(ctx context.Context, i Image) SpecOpts {
 	}
 }
 
-// WithUnmanagedRootFS specifies unmanaged rootfs path.
-func WithUnmanagedRootFS(path string, readonly bool) SpecOpts {
+// WithRootFS specifies unmanaged rootfs path.
+func WithRootFS(path string, readonly bool) SpecOpts {
 	return func(s *specs.Spec) error {
 		s.Root = &specs.Root{
 			Path:     path,
