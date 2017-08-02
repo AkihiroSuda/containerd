@@ -76,6 +76,10 @@ func NewResolver(options ResolverOptions) remotes.Resolver {
 
 var _ remotes.Resolver = &dockerResolver{}
 
+// tokenScopesKey is used for the key for context.WithValue().
+// value: []string (e.g. {"registry:foo/bar:pull"})
+type tokenScopesKey struct{}
+
 func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocispec.Descriptor, error) {
 	refspec, err := reference.Parse(ref)
 	if err != nil {
@@ -90,7 +94,9 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
 	if err != nil {
 		return "", ocispec.Descriptor{}, err
 	}
-
+	if err := base.init(ctx, false); err != nil {
+		return "", ocispec.Descriptor{}, err
+	}
 	fetcher := dockerFetcher{
 		dockerBase: base,
 	}
@@ -196,7 +202,9 @@ func (r *dockerResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetch
 	if err != nil {
 		return nil, err
 	}
-
+	if err := base.init(ctx, false); err != nil {
+		return nil, err
+	}
 	return dockerFetcher{
 		dockerBase: base,
 	}, nil
@@ -219,7 +227,9 @@ func (r *dockerResolver) Pusher(ctx context.Context, ref string) (remotes.Pusher
 	if err != nil {
 		return nil, err
 	}
-
+	if err := base.init(ctx, true); err != nil {
+		return nil, err
+	}
 	return dockerPusher{
 		dockerBase: base,
 		tag:        refspec.Object,
@@ -228,8 +238,9 @@ func (r *dockerResolver) Pusher(ctx context.Context, ref string) (remotes.Pusher
 }
 
 type dockerBase struct {
-	base  url.URL
-	token string
+	refspec reference.Spec
+	base    url.URL
+	token   string
 
 	client   *http.Client
 	useBasic bool
@@ -264,10 +275,10 @@ func (r *dockerResolver) base(refspec reference.Spec) (*dockerBase, error) {
 		}
 	}
 
-	prefix := strings.TrimPrefix(refspec.Locator, host+"/")
-	base.Path = path.Join("/v2", prefix)
+	base.Path = path.Join("/v2", refspec.Path())
 
 	return &dockerBase{
+		refspec:  refspec,
 		base:     base,
 		client:   r.client,
 		username: username,
@@ -423,18 +434,25 @@ func (r *dockerBase) setTokenAuth(ctx context.Context, params map[string]string)
 		return fmt.Errorf("invalid token auth challenge realm: %s", err)
 	}
 
+	service, ok := params["service"]
+	if !ok {
+		return errors.Errorf("no service specified for token auth challenge")
+	}
+
 	to := tokenOptions{
 		realm:   realmURL.String(),
-		service: params["service"],
+		service: service,
 	}
 
-	scope, ok := params["scope"]
-	if !ok {
-		return errors.Errorf("no scope specified for token auth challenge")
+	if x := ctx.Value(tokenScopesKey{}); x != nil {
+		to.scopes = append(to.scopes, x.([]string)...)
 	}
-
-	// TODO: Get added scopes from context
-	to.scopes = []string{scope}
+	if scope, ok := params["scope"]; ok {
+		to.scopes = append(to.scopes, scope)
+	}
+	if len(to.scopes) == 0 {
+		return errors.Errorf("no token specified for token auth challenge")
+	}
 
 	if r.secret != "" {
 		// Credential information is provided, use oauth POST endpoint
@@ -489,7 +507,8 @@ func (r *dockerBase) fetchTokenWithOAuth(ctx context.Context, to tokenOptions) (
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 405 && r.username != "" {
+	// GCR returns 404 for POST /v2/token
+	if (resp.StatusCode == 405 && r.username != "") || resp.StatusCode == 404 {
 		// It would be nice if registries would implement the specifications
 		return r.getToken(ctx, to)
 	} else if resp.StatusCode < 200 || resp.StatusCode >= 400 {
@@ -573,4 +592,29 @@ func (r *dockerBase) getToken(ctx context.Context, to tokenOptions) (string, err
 	}
 
 	return tr.Token, nil
+}
+
+// init pings /v2/ to get WWW-Authenticate header (#1205)
+func (b *dockerBase) init(ctx context.Context, push bool) error {
+	u := b.base.Scheme + "://" + b.base.Host + "/v2/"
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return err
+	}
+	ctxWithScope := context.WithValue(ctx, tokenScopesKey{}, []string{tokenRepoScope(b.refspec, push)})
+	resp, err := b.doRequestWithRetries(ctxWithScope, req, nil)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close() // don't care about body contents.
+	return nil
+}
+
+// tokenRepoScope: https://docs.docker.com/registry/spec/auth/scope
+func tokenRepoScope(refspec reference.Spec, push bool) string {
+	s := "repository:" + refspec.Path() + ":pull"
+	if push {
+		s += ",push"
+	}
+	return s
 }
