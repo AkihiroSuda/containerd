@@ -20,5 +20,5 @@ func newSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, fun
 
 func TestNaive(t *testing.T) {
 	testutil.RequiresRoot(t)
-	testsuite.SnapshotterSuite(t, "Naive", newSnapshotter)
+	testsuite.SnapshotterSuite(t, "Naive", newSnapshotter, testsuite.WithTestViewReadonly(true))
 }

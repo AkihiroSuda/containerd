@@ -29,7 +29,7 @@ func newSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, fun
 
 func TestOverlay(t *testing.T) {
 	testutil.RequiresRoot(t)
-	testsuite.SnapshotterSuite(t, "Overlay", newSnapshotter)
+	testsuite.SnapshotterSuite(t, "Overlay", newSnapshotter, testsuite.WithTestViewReadonly(true))
 }
 
 func TestOverlayMounts(t *testing.T) {

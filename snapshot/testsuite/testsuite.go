@@ -18,8 +18,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type SnapshotterSuiteOpt func(*snapshotterSuiteOpts) error
+
+type snapshotterSuiteOpts struct {
+	TestViewReadonly bool
+}
+
+// WithTestViewReadonly ensures a KindView snapshot to be mounted as a read-only filesystem.
+// This flag does not need to be always true, although most implementation are likely to set this flag.
+func WithTestViewReadonly(b bool) SnapshotterSuiteOpt {
+	return func(x *snapshotterSuiteOpts) error {
+		x.TestViewReadonly = b
+		return nil
+	}
+}
+
 // SnapshotterSuite runs a test suite on the snapshotter given a factory function.
-func SnapshotterSuite(t *testing.T, name string, snapshotterFn func(ctx context.Context, root string) (snapshot.Snapshotter, func(), error)) {
+func SnapshotterSuite(t *testing.T, name string, snapshotterFn func(ctx context.Context, root string) (snapshot.Snapshotter, func(), error), opts ...SnapshotterSuiteOpt) {
+	var sopts snapshotterSuiteOpts
+	for _, o := range opts {
+		if err := o(&sopts); err != nil {
+			t.Fatal(err)
+		}
+	}
 	t.Parallel()
 
 	t.Run("Basic", makeTest(name, snapshotterFn, checkSnapshotterBasic))
@@ -37,6 +58,10 @@ func SnapshotterSuite(t *testing.T, name string, snapshotterFn func(ctx context.
 
 	// Rename test still fails on some kernels with overlay
 	//t.Run("Rename", makeTest(name, snapshotterFn, checkRename))
+
+	if sopts.TestViewReadonly {
+		t.Run("ViewReadonly", makeTest(name, snapshotterFn, checkSnapshotterViewReadonly))
+	}
 }
 
 func makeTest(name string, snapshotterFn func(ctx context.Context, root string) (snapshot.Snapshotter, func(), error), fn func(ctx context.Context, t *testing.T, snapshotter snapshot.Snapshotter, work string)) func(t *testing.T) {
@@ -651,4 +676,43 @@ func checkRemove(ctx context.Context, t *testing.T, snapshotter snapshot.Snapsho
 	if err := snapshotter.Commit(ctx, "commited-1", "reuse-1"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// checkSnapshotterViewReadonly ensures a KindView snapshot to be mounted as a read-only filesystem.
+// This function is called only when WithTestViewReadonly is true.
+func checkSnapshotterViewReadonly(ctx context.Context, t *testing.T, snapshotter snapshot.Snapshotter, work string) {
+	t.Parallel()
+
+	preparing := filepath.Join(work, "preparing")
+	if _, err := snapshotter.Prepare(ctx, preparing, ""); err != nil {
+		t.Fatal(err)
+	}
+	committed := filepath.Join(work, "commited")
+	if err := snapshotter.Commit(ctx, committed, preparing); err != nil {
+		t.Fatal(err)
+	}
+	view := filepath.Join(work, "view")
+	m, err := snapshotter.View(ctx, view, committed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewMountPoint := filepath.Join(work, "view-mount")
+	if err := os.MkdirAll(viewMountPoint, 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	// Just checking the option string of m is not enough, we need to test real mount. (#1368)
+	if err := mount.MountAll(m, viewMountPoint); err != nil {
+		t.Fatal(err)
+	}
+
+	testfile := filepath.Join(viewMountPoint, "testfile")
+	if err := ioutil.WriteFile(testfile, []byte("testcontent"), 0777); err != nil {
+		t.Logf("write to %q failed with %v (EROFS is expected but can be other error code)", testfile, err)
+	} else {
+		t.Fatalf("write to %q should fail (EROFS) but did not fail", testfile)
+	}
+	testutil.Unmount(t, viewMountPoint)
+	assert.NoError(t, snapshotter.Remove(ctx, view))
+	assert.NoError(t, snapshotter.Remove(ctx, committed))
 }

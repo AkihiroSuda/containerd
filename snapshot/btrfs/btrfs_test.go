@@ -45,7 +45,7 @@ func boltSnapshotter(t *testing.T) func(context.Context, string) (snapshot.Snaps
 
 func TestBtrfs(t *testing.T) {
 	testutil.RequiresRoot(t)
-	testsuite.SnapshotterSuite(t, "Btrfs", boltSnapshotter(t))
+	testsuite.SnapshotterSuite(t, "Btrfs", boltSnapshotter(t), testsuite.WithTestViewReadonly(true))
 }
 
 func TestBtrfsMounts(t *testing.T) {
