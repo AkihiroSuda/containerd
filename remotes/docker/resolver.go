@@ -498,7 +498,8 @@ func (r *dockerBase) fetchTokenWithOAuth(ctx context.Context, to tokenOptions) (
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 405 && r.username != "" {
+	// GCR returns 404 for POST /v2/token
+	if (resp.StatusCode == 405 && r.username != "") || resp.StatusCode == 404 {
 		// It would be nice if registries would implement the specifications
 		return r.getToken(ctx, to)
 	} else if resp.StatusCode < 200 || resp.StatusCode >= 400 {
