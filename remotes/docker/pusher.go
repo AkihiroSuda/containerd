@@ -28,6 +28,7 @@ type dockerPusher struct {
 }
 
 func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (content.Writer, error) {
+	ctx = context.WithValue(ctx, tokenScopesKey{}, []string{tokenRepoScope(p.refspec, true)})
 	ref := remotes.MakeRefKey(ctx, desc)
 	status, err := p.tracker.GetStatus(ref)
 	if err == nil {

@@ -31,6 +31,7 @@ func (r dockerFetcher) Fetch(ctx context.Context, desc ocispec.Descriptor) (io.R
 		return nil, err
 	}
 
+	ctx = context.WithValue(ctx, tokenScopesKey{}, []string{tokenRepoScope(r.refspec, false)})
 	for _, path := range paths {
 		u := r.url(path)
 
