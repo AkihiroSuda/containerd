@@ -13,19 +13,19 @@ import (
 var imagesImportCommand = cli.Command{
 	Name:        "import",
 	Usage:       "import an image",
-	ArgsUsage:   "[flags] <ref> <in>",
+	ArgsUsage:   "[flags] <name> <in>",
 	Description: `Import an image from a tar stream.`,
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "ref-object",
 			Value: "",
-			Usage: "reference object e.g. tag@digest (default: use the object specified in ref)",
+			Usage: "reference object e.g. tag@digest (default: use the object specified in the image name)",
 		},
 		labelFlag,
 	},
 	Action: func(clicontext *cli.Context) error {
 		var (
-			ref       = clicontext.Args().First()
+			name      = clicontext.Args().First()
 			in        = clicontext.Args().Get(1)
 			refObject = clicontext.String("ref-object")
 			labels    = labelArgs(clicontext.StringSlice("label"))
@@ -49,7 +49,7 @@ var imagesImportCommand = cli.Command{
 			}
 		}
 		img, err := client.Import(ctx,
-			ref,
+			name,
 			r,
 			containerd.WithRefObject(refObject),
 			containerd.WithImportLabels(labels),
@@ -61,7 +61,7 @@ var imagesImportCommand = cli.Command{
 			return err
 		}
 
-		log.G(ctx).WithField("image", ref).Debug("unpacking")
+		log.G(ctx).WithField("image", name).Debug("unpacking")
 
 		// TODO: Show unpack status
 		fmt.Printf("unpacking %s...", img.Target().Digest)

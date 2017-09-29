@@ -97,13 +97,13 @@ var runCommand = cli.Command{
 
 			ctx, cancel = appContext(context)
 			id          = context.Args().Get(1)
-			imageRef    = context.Args().First()
+			imageName   = context.Args().First()
 			tty         = context.Bool("tty")
 		)
 		defer cancel()
 
-		if imageRef == "" {
-			return errors.New("image ref must be provided")
+		if imageName == "" {
+			return errors.New("image name must be provided")
 		}
 		if id == "" {
 			return errors.New("container id must be provided")

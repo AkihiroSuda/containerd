@@ -86,7 +86,7 @@ func setHostNetworking() containerd.SpecOpts {
 
 func newContainer(ctx gocontext.Context, client *containerd.Client, context *cli.Context) (containerd.Container, error) {
 	var (
-		// ref          = context.Args().First()
+		// imageName          = context.Args().First()
 		id           = context.Args().Get(1)
 		args         = context.Args()[2:]
 		tty          = context.Bool("tty")

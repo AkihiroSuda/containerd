@@ -61,9 +61,9 @@ func setHostNetworking() containerd.SpecOpts {
 
 func newContainer(ctx gocontext.Context, client *containerd.Client, context *cli.Context) (containerd.Container, error) {
 	var (
-		ref  = context.Args().First()
-		id   = context.Args().Get(1)
-		args = context.Args()[2:]
+		imageNameOrPath = context.Args().First()
+		id              = context.Args().Get(1)
+		args            = context.Args()[2:]
 	)
 
 	if raw := context.String("checkpoint"); raw != "" {
@@ -84,9 +84,9 @@ func newContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 	)
 	cOpts = append(cOpts, containerd.WithContainerLabels(labelArgs(context.StringSlice("label"))))
 	if context.Bool("rootfs") {
-		opts = append(opts, containerd.WithRootFSPath(ref))
+		opts = append(opts, containerd.WithRootFSPath(imageNameOrPath))
 	} else {
-		image, err := client.GetImage(ctx, ref)
+		image, err := client.GetImage(ctx, imageNameOrPath)
 		if err != nil {
 			return nil, err
 		}
