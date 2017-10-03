@@ -20,7 +20,6 @@ import (
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/platforms"
-	"github.com/opencontainers/image-spec/identity"
 	"github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runc/libcontainer/user"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
@@ -230,64 +229,6 @@ func WithUserNamespace(container, host, size uint32) SpecOpts {
 		}
 		s.Linux.UIDMappings = append(s.Linux.UIDMappings, mapping)
 		s.Linux.GIDMappings = append(s.Linux.GIDMappings, mapping)
-		return nil
-	}
-}
-
-// WithRemappedSnapshot creates a new snapshot and remaps the uid/gid for the
-// filesystem to be used by a container with user namespaces
-func WithRemappedSnapshot(id string, i Image, uid, gid uint32) NewContainerOpts {
-	return withRemappedSnapshotBase(id, i, uid, gid, false)
-}
-
-// WithRemappedSnapshotView is similar to WithRemappedSnapshot but rootfs is mounted as read-only.
-func WithRemappedSnapshotView(id string, i Image, uid, gid uint32) NewContainerOpts {
-	return withRemappedSnapshotBase(id, i, uid, gid, true)
-}
-
-func withRemappedSnapshotBase(id string, i Image, uid, gid uint32, readonly bool) NewContainerOpts {
-	return func(ctx context.Context, client *Client, c *containers.Container) error {
-		diffIDs, err := i.(*image).i.RootFS(ctx, client.ContentStore(), platforms.Default())
-		if err != nil {
-			return err
-		}
-
-		setSnapshotterIfEmpty(c)
-
-		var (
-			snapshotter = client.SnapshotService(c.Snapshotter)
-			parent      = identity.ChainID(diffIDs).String()
-			usernsID    = fmt.Sprintf("%s-%d-%d", parent, uid, gid)
-		)
-		if _, err := snapshotter.Stat(ctx, usernsID); err == nil {
-			if _, err := snapshotter.Prepare(ctx, id, usernsID); err != nil {
-				return err
-			}
-			c.SnapshotKey = id
-			c.Image = i.Name()
-			return nil
-		}
-		mounts, err := snapshotter.Prepare(ctx, usernsID+"-remap", parent)
-		if err != nil {
-			return err
-		}
-		if err := remapRootFS(mounts, uid, gid); err != nil {
-			snapshotter.Remove(ctx, usernsID)
-			return err
-		}
-		if err := snapshotter.Commit(ctx, usernsID, usernsID+"-remap"); err != nil {
-			return err
-		}
-		if readonly {
-			_, err = snapshotter.View(ctx, id, usernsID)
-		} else {
-			_, err = snapshotter.Prepare(ctx, id, usernsID)
-		}
-		if err != nil {
-			return err
-		}
-		c.SnapshotKey = id
-		c.Image = i.Name()
 		return nil
 	}
 }

@@ -39,10 +39,20 @@ func withExecArgs(s *specs.Process, args ...string) {
 	s.Args = args
 }
 
+func withRemappedSnapshot(id string, i Image, u, g uint32) NewContainerOpts {
+	m := &RemapSnapshotModifier{UID: u, GID: g}
+	readonly := false
+	return WithSnapshotModifiers(id, i, readonly, m)
+}
+
+func withRemappedSnapshotView(id string, i Image, u, g uint32) NewContainerOpts {
+	m := &RemapSnapshotModifier{UID: u, GID: g}
+	readonly := true
+	return WithSnapshotModifiers(id, i, readonly, m)
+}
+
 var (
-	withUserNamespace        = WithUserNamespace
-	withRemappedSnapshot     = WithRemappedSnapshot
-	withRemappedSnapshotView = WithRemappedSnapshotView
-	withNewSnapshot          = WithNewSnapshot
-	withImageConfig          = WithImageConfig
+	withUserNamespace = WithUserNamespace
+	withNewSnapshot   = WithNewSnapshot
+	withImageConfig   = WithImageConfig
 )
