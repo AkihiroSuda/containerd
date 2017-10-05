@@ -27,6 +27,7 @@ var (
 	ErrFailedPrecondition = errors.New("failed precondition")
 	ErrUnavailable        = errors.New("unavailable")
 	ErrNotImplemented     = errors.New("not implemented") // represents not supported and unimplemented
+	ErrAmbiguous          = errors.New("ambiguous")       // selector (e.g. filter) matches too many items
 )
 
 // IsInvalidArgument returns true if the error is due to an invalid argument
@@ -59,4 +60,9 @@ func IsUnavailable(err error) bool {
 // IsNotImplemented returns true if the error is due to not being implemented
 func IsNotImplemented(err error) bool {
 	return errors.Cause(err) == ErrNotImplemented
+}
+
+// IsAmbiguous returns true if the error is due to ambiguity
+func IsAmbiguous(err error) bool {
+	return errors.Cause(err) == ErrAmbiguous
 }
