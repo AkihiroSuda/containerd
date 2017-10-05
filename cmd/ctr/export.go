@@ -12,10 +12,12 @@ import (
 )
 
 var imagesExportCommand = cli.Command{
-	Name:        "export",
-	Usage:       "export an image",
-	ArgsUsage:   "[flags] <out> <image>",
-	Description: `Export an image to a tar stream.`,
+	Name:      "export",
+	Usage:     "export an image",
+	ArgsUsage: "[flags] <out> <image>",
+	Description: `Export an image to a tar stream.
+Currently, only OCI format is supported.
+`,
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "oci-ref-name",

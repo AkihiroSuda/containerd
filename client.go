@@ -23,9 +23,10 @@ import (
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/importer"
+	ociimporter "github.com/containerd/containerd/importer/oci"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/plugin"
-	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/containerd/containerd/remotes/docker/schema1"
@@ -478,16 +479,10 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 	}, nil
 }
 
-type imageFormat string
-
-const (
-	ociImageFormat imageFormat = "oci"
-)
-
 type importOpts struct {
-	format    imageFormat
-	refObject string
-	labels    map[string]string
+	importer importer.Importer
+	selector string
+	labels   map[string]string
 }
 
 // ImportOpt allows the caller to specify import specific options
@@ -519,22 +514,27 @@ func WithImportLabels(labels map[string]string) ImportOpt {
 	}
 }
 
-// WithOCIImportFormat sets the import format for an OCI image format
-func WithOCIImportFormat() ImportOpt {
+// WithImporter sets the importer
+func WithImporter(i importer.Importer) ImportOpt {
 	return func(c *importOpts) error {
-		if c.format != "" {
-			return errors.New("format already set")
+		if c.importer != nil {
+			return errors.New("impoter already set")
 		}
-		c.format = ociImageFormat
+		c.importer = i
 		return nil
 	}
 }
 
-// WithRefObject specifies the ref object to import.
-// If refObject is empty, it is copied from the ref argument of Import().
-func WithRefObject(refObject string) ImportOpt {
+// WithImportSelector sets the selector string for determining which image to import.
+// The selector string specification is specific to importer implementation, but it
+// SHOULD be compatible to containerd ref string.
+// If selector is empty, it is copied from the ref argument of Import().
+func WithImportSelector(selector string) ImportOpt {
 	return func(c *importOpts) error {
-		c.refObject = refObject
+		if c.selector != "" {
+			return errors.New("selector already set")
+		}
+		c.selector = selector
 		return nil
 	}
 }
@@ -547,16 +547,12 @@ func resolveImportOpt(ref string, opts ...ImportOpt) (importOpts, error) {
 		}
 	}
 	// use OCI as the default format
-	if iopts.format == "" {
-		iopts.format = ociImageFormat
+	if iopts.importer == nil {
+		iopts.importer = ociimporter.OCIv1Importer
 	}
-	// if refObject is not explicitly specified, use the one specified in ref
-	if iopts.refObject == "" {
-		refSpec, err := reference.Parse(ref)
-		if err != nil {
-			return iopts, err
-		}
-		iopts.refObject = refSpec.Object
+	// if selector is not explicitly specified, use ref
+	if iopts.selector == "" {
+		iopts.selector = ref
 	}
 	return iopts, nil
 }
@@ -570,31 +566,39 @@ func (c *Client) Import(ctx context.Context, ref string, reader io.Reader, opts 
 	if err != nil {
 		return nil, err
 	}
-	switch iopts.format {
-	case ociImageFormat:
-		return c.importFromOCITar(ctx, ref, reader, iopts)
-	default:
-		return nil, errors.Errorf("unsupported format: %s", iopts.format)
+	imgrec, err := iopts.importer.Import(ctx, c.ContentStore(), ref, reader, iopts.selector)
+	if err != nil {
+		return nil, err
 	}
+	imgrec.Labels = iopts.labels
+	is := c.ImageService()
+	if updated, err := is.Update(ctx, imgrec, "target"); err != nil {
+		if !errdefs.IsNotFound(err) {
+			return nil, err
+		}
+
+		created, err := is.Create(ctx, imgrec)
+		if err != nil {
+			return nil, err
+		}
+
+		imgrec = created
+	} else {
+		imgrec = updated
+	}
+
+	img := &image{
+		client: c,
+		i:      imgrec,
+	}
+	return img, nil
 }
 
 type exportOpts struct {
-	format imageFormat
 }
 
 // ExportOpt allows callers to set export options
 type ExportOpt func(c *exportOpts) error
-
-// WithOCIExportFormat sets the OCI image format as the export target
-func WithOCIExportFormat() ExportOpt {
-	return func(c *exportOpts) error {
-		if c.format != "" {
-			return errors.New("format already set")
-		}
-		c.format = ociImageFormat
-		return nil
-	}
-}
 
 // TODO: add WithMediaTypeTranslation that transforms media types according to the format.
 // e.g. application/vnd.docker.image.rootfs.diff.tar.gzip
@@ -610,18 +614,9 @@ func (c *Client) Export(ctx context.Context, desc ocispec.Descriptor, opts ...Ex
 			return nil, err
 		}
 	}
-	// use OCI as the default format
-	if eopts.format == "" {
-		eopts.format = ociImageFormat
-	}
 	pr, pw := io.Pipe()
-	switch eopts.format {
-	case ociImageFormat:
-		go func() {
-			pw.CloseWithError(c.exportToOCITar(ctx, desc, pw, eopts))
-		}()
-	default:
-		return nil, errors.Errorf("unsupported format: %s", eopts.format)
-	}
+	go func() {
+		pw.CloseWithError(c.exportToOCITar(ctx, desc, pw, eopts))
+	}()
 	return pr, nil
 }

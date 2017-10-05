@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// TestExportAndImport exports testImage as a tar stream,
+// TestOCIExportAndImport exports testImage as a tar stream,
 // and import the tar stream as a new image.
-func TestExportAndImport(t *testing.T) {
+func TestOCIExportAndImport(t *testing.T) {
 	// TODO: support windows
 	if testing.Short() || runtime.GOOS == "windows" {
 		t.Skip()
@@ -32,7 +32,9 @@ func TestExportAndImport(t *testing.T) {
 	}
 
 	importRef := "test/export-and-import:tmp"
-	_, err = client.Import(ctx, importRef, exported, WithRefObject("@"+pulled.Target().Digest.String()))
+	// OCI import selector can be either reference string or reference object string.
+	// For OCI, since we don't need have concept of Locator, we use object string here.
+	_, err = client.Import(ctx, importRef, exported, WithImportSelector("@"+pulled.Target().Digest.String()))
 	if err != nil {
 		t.Fatal(err)
 	}
