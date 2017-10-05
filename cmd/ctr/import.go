@@ -6,6 +6,9 @@ import (
 	"os"
 
 	"github.com/containerd/containerd"
+	dockerimporter "github.com/containerd/containerd/contrib/importer/docker"
+	"github.com/containerd/containerd/importer"
+	ociimporter "github.com/containerd/containerd/importer/oci"
 	"github.com/containerd/containerd/log"
 	"github.com/urfave/cli"
 )
@@ -17,8 +20,6 @@ var imagesImportCommand = cli.Command{
 	Description: `Import an image from a tar stream.
 Implemented formats:
 - oci.v1     (default)
-
-Planned but unimplemented formats:
 - docker.v1
 
 Selector string specification:
@@ -32,6 +33,11 @@ The default selector string is <ref>, but it is not guaranteed to be a valid sel
 `,
 	Flags: []cli.Flag{
 		cli.StringFlag{
+			Name:  "format",
+			Value: "oci.v1",
+			Usage: "image format. See DESCRIPTION.",
+		},
+		cli.StringFlag{
 			Name:  "selector",
 			Value: "",
 			Usage: "string for selecting which image object to import from the archive stream. See DESCRIPTION.",
@@ -41,11 +47,21 @@ The default selector string is <ref>, but it is not guaranteed to be a valid sel
 
 	Action: func(clicontext *cli.Context) error {
 		var (
-			ref      = clicontext.Args().First()
-			in       = clicontext.Args().Get(1)
-			selector = clicontext.String("selector")
-			labels   = labelArgs(clicontext.StringSlice("label"))
+			ref           = clicontext.Args().First()
+			in            = clicontext.Args().Get(1)
+			selector      = clicontext.String("selector")
+			labels        = labelArgs(clicontext.StringSlice("label"))
+			imageImporter importer.Importer
 		)
+
+		switch format := clicontext.String("format"); format {
+		case "oci.v1":
+			imageImporter = ociimporter.OCIv1Importer
+		case "docker.v1":
+			imageImporter = dockerimporter.Dockerv1Importer
+		default:
+			return fmt.Errorf("unknown format %s", format)
+		}
 
 		ctx, cancel := appContext(clicontext)
 		defer cancel()
@@ -67,6 +83,7 @@ The default selector string is <ref>, but it is not guaranteed to be a valid sel
 		img, err := client.Import(ctx,
 			ref,
 			r,
+			containerd.WithImporter(imageImporter),
 			containerd.WithImportSelector(selector),
 			containerd.WithImportLabels(labels),
 		)
