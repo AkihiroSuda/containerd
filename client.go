@@ -22,10 +22,11 @@ import (
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/imageformats"
+	"github.com/containerd/containerd/imageformats/oci"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/plugin"
-	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/containerd/containerd/remotes/docker/schema1"
@@ -478,16 +479,9 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 	}, nil
 }
 
-type imageFormat string
-
-const (
-	ociImageFormat imageFormat = "oci"
-)
-
 type importOpts struct {
-	format    imageFormat
-	refObject string
-	labels    map[string]string
+	importer imageformats.Importer
+	labels   map[string]string
 }
 
 // ImportOpt allows the caller to specify import specific options
@@ -519,27 +513,18 @@ func WithImportLabels(labels map[string]string) ImportOpt {
 	}
 }
 
-// WithOCIImportFormat sets the import format for an OCI image format
-func WithOCIImportFormat() ImportOpt {
+// WithImporter sets the importer
+func WithImporter(importer imageformats.Importer) ImportOpt {
 	return func(c *importOpts) error {
-		if c.format != "" {
-			return errors.New("format already set")
+		if c.importer != nil {
+			return errors.New("impoter already set")
 		}
-		c.format = ociImageFormat
+		c.importer = importer
 		return nil
 	}
 }
 
-// WithRefObject specifies the ref object to import.
-// If refObject is empty, it is copied from the ref argument of Import().
-func WithRefObject(refObject string) ImportOpt {
-	return func(c *importOpts) error {
-		c.refObject = refObject
-		return nil
-	}
-}
-
-func resolveImportOpt(ref string, opts ...ImportOpt) (importOpts, error) {
+func resolveImportOpt(opts ...ImportOpt) (importOpts, error) {
 	var iopts importOpts
 	for _, o := range opts {
 		if err := o(&iopts); err != nil {
@@ -547,81 +532,99 @@ func resolveImportOpt(ref string, opts ...ImportOpt) (importOpts, error) {
 		}
 	}
 	// use OCI as the default format
-	if iopts.format == "" {
-		iopts.format = ociImageFormat
-	}
-	// if refObject is not explicitly specified, use the one specified in ref
-	if iopts.refObject == "" {
-		refSpec, err := reference.Parse(ref)
-		if err != nil {
-			return iopts, err
-		}
-		iopts.refObject = refSpec.Object
+	if iopts.importer == nil {
+		iopts.importer = oci.V1Importer
 	}
 	return iopts, nil
 }
 
 // Import imports an image from a Tar stream using reader.
 // OCI format is assumed by default.
+// Filter strings are format-specific, but needs to match exactly one item.
 //
-// Note that unreferenced blobs are imported to the content store as well.
-func (c *Client) Import(ctx context.Context, ref string, reader io.Reader, opts ...ImportOpt) (Image, error) {
-	iopts, err := resolveImportOpt(ref, opts...)
+// TODO(AkihiroSuda): support importing multiple images from a single archive at once? (map[ref]filter?)
+//
+// Note that unreferenced blobs may be imported to the content store as well.
+func (c *Client) Import(ctx context.Context, ref string, reader io.Reader, filter string, opts ...ImportOpt) (Image, error) {
+	iopts, err := resolveImportOpt(opts...)
 	if err != nil {
 		return nil, err
 	}
-	switch iopts.format {
-	case ociImageFormat:
-		return c.importFromOCITar(ctx, ref, reader, iopts)
-	default:
-		return nil, errors.Errorf("unsupported format: %s", iopts.format)
+	imgdesc, err := iopts.importer.Import(ctx, c.ContentStore(), reader, filter)
+	if err != nil {
+		return nil, err
 	}
+	imgrec := images.Image{
+		Name:   ref,
+		Target: *imgdesc,
+		Labels: iopts.labels,
+	}
+	is := c.ImageService()
+	if updated, err := is.Update(ctx, imgrec, "target"); err != nil {
+		if !errdefs.IsNotFound(err) {
+			return nil, err
+		}
+
+		created, err := is.Create(ctx, imgrec)
+		if err != nil {
+			return nil, err
+		}
+
+		imgrec = created
+	} else {
+		imgrec = updated
+	}
+
+	img := &image{
+		client: c,
+		i:      imgrec,
+	}
+	return img, nil
 }
 
 type exportOpts struct {
-	format imageFormat
+	exporter imageformats.Exporter
 }
 
-// ExportOpt allows callers to set export options
+// ExportOpt allows the caller to specify export specific options
 type ExportOpt func(c *exportOpts) error
 
-// WithOCIExportFormat sets the OCI image format as the export target
-func WithOCIExportFormat() ExportOpt {
+// WithExporter sets the exporter
+func WithExporter(exporter imageformats.Exporter) ExportOpt {
 	return func(c *exportOpts) error {
-		if c.format != "" {
-			return errors.New("format already set")
+		if c.exporter != nil {
+			return errors.New("exporter already set")
 		}
-		c.format = ociImageFormat
+		c.exporter = exporter
 		return nil
 	}
 }
 
-// TODO: add WithMediaTypeTranslation that transforms media types according to the format.
-// e.g. application/vnd.docker.image.rootfs.diff.tar.gzip
-//      -> application/vnd.oci.image.layer.v1.tar+gzip
+func resolveExportOpt(opts ...ExportOpt) (exportOpts, error) {
+	var eopts exportOpts
+	for _, o := range opts {
+		if err := o(&eopts); err != nil {
+			return eopts, err
+		}
+	}
+	// use OCI as the default format
+	if eopts.exporter == nil {
+		eopts.exporter = oci.V1Exporter
+	}
+	return eopts, nil
+}
 
 // Export exports an image to a Tar stream.
 // OCI format is used by default.
 // It is up to caller to put "org.opencontainers.image.ref.name" annotation to desc.
 func (c *Client) Export(ctx context.Context, desc ocispec.Descriptor, opts ...ExportOpt) (io.ReadCloser, error) {
-	var eopts exportOpts
-	for _, o := range opts {
-		if err := o(&eopts); err != nil {
-			return nil, err
-		}
-	}
-	// use OCI as the default format
-	if eopts.format == "" {
-		eopts.format = ociImageFormat
+	eopts, err := resolveExportOpt(opts...)
+	if err != nil {
+		return nil, err
 	}
 	pr, pw := io.Pipe()
-	switch eopts.format {
-	case ociImageFormat:
-		go func() {
-			pw.CloseWithError(c.exportToOCITar(ctx, desc, pw, eopts))
-		}()
-	default:
-		return nil, errors.Errorf("unsupported format: %s", eopts.format)
-	}
+	go func() {
+		pw.CloseWithError(eopts.exporter.Export(ctx, c.ContentStore(), desc, pw))
+	}()
 	return pr, nil
 }
