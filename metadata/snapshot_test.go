@@ -13,7 +13,7 @@ import (
 	"github.com/containerd/containerd/testutil"
 )
 
-func newTestSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, func() error, error) {
+func newTestSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, func(context.Context) error, error) {
 	naiveRoot := filepath.Join(root, "naive")
 	if err := os.Mkdir(naiveRoot, 0770); err != nil {
 		return nil, nil, err
@@ -30,7 +30,10 @@ func newTestSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter,
 
 	sn := NewDB(db, nil, map[string]snapshot.Snapshotter{"naive": snapshotter}).Snapshotter("naive")
 
-	return sn, func() error {
+	return sn, func(xctx context.Context) error {
+		if err := sn.Close(xctx); err != nil {
+			return err
+		}
 		return db.Close()
 	}, nil
 }

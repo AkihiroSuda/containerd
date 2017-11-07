@@ -18,13 +18,13 @@ import (
 	"github.com/containerd/containerd/testutil"
 )
 
-func newSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, func() error, error) {
+func newSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, func(context.Context) error, error) {
 	snapshotter, err := NewSnapshotter(root)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return snapshotter, nil, nil
+	return snapshotter, func(xctx context.Context) error { return snapshotter.Close(xctx) }, nil
 }
 
 func TestOverlay(t *testing.T) {

@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func boltSnapshotter(t *testing.T) func(context.Context, string) (snapshot.Snapshotter, func() error, error) {
+func boltSnapshotter(t *testing.T) func(context.Context, string) (snapshot.Snapshotter, func(context.Context) error, error) {
 	mkbtrfs, err := exec.LookPath("mkfs.btrfs")
 	if err != nil {
 		t.Skipf("could not find mkfs.btrfs: %v", err)
@@ -27,7 +27,7 @@ func boltSnapshotter(t *testing.T) func(context.Context, string) (snapshot.Snaps
 
 	// TODO: Check for btrfs in /proc/module and skip if not loaded
 
-	return func(ctx context.Context, root string) (snapshot.Snapshotter, func() error, error) {
+	return func(ctx context.Context, root string) (snapshot.Snapshotter, func(context.Context) error, error) {
 
 		deviceName, cleanupDevice, err := testutil.NewLoopback(100 << 20) // 100 MB
 		if err != nil {
@@ -46,7 +46,10 @@ func boltSnapshotter(t *testing.T) func(context.Context, string) (snapshot.Snaps
 			return nil, nil, errors.Wrap(err, "failed to create new snapshotter")
 		}
 
-		return snapshotter, func() error {
+		return snapshotter, func(xctx context.Context) error {
+			if err := snapshotter.Close(xctx); err != nil {
+				return err
+			}
 			err := mount.UnmountAll(root, unix.MNT_DETACH)
 			if cerr := cleanupDevice(); cerr != nil {
 				err = errors.Wrap(cerr, "device cleanup failed")
@@ -83,7 +86,7 @@ func TestBtrfsMounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c()
+	defer c(ctx)
 
 	target := filepath.Join(root, "test")
 	mounts, err := b.Prepare(ctx, target, "")

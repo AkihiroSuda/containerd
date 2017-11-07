@@ -322,3 +322,8 @@ func (o *snapshotter) mounts(s storage.Snapshot) []mount.Mount {
 		},
 	}
 }
+
+// Close closes the snapshotter
+func (o *snapshotter) Close(ctx context.Context) error {
+	return o.ms.Close()
+}

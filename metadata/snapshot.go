@@ -720,3 +720,8 @@ func (s *snapshotter) pruneBranch(ctx context.Context, node *treeNode) error {
 
 	return nil
 }
+
+// Close closes s.Snapshotter but not db
+func (s *snapshotter) Close(ctx context.Context) error {
+	return s.Snapshotter.Close(ctx)
+}

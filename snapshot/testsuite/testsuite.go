@@ -19,7 +19,7 @@ import (
 )
 
 // SnapshotterSuite runs a test suite on the snapshotter given a factory function.
-func SnapshotterSuite(t *testing.T, name string, snapshotterFn func(ctx context.Context, root string) (snapshot.Snapshotter, func() error, error)) {
+func SnapshotterSuite(t *testing.T, name string, snapshotterFn func(ctx context.Context, root string) (snapshot.Snapshotter, func(context.Context) error, error)) {
 	restoreMask := clearMask()
 	defer restoreMask()
 
@@ -46,7 +46,7 @@ func SnapshotterSuite(t *testing.T, name string, snapshotterFn func(ctx context.
 	t.Run("StatInWalk", makeTest(name, snapshotterFn, checkStatInWalk))
 }
 
-func makeTest(name string, snapshotterFn func(ctx context.Context, root string) (snapshot.Snapshotter, func() error, error), fn func(ctx context.Context, t *testing.T, snapshotter snapshot.Snapshotter, work string)) func(t *testing.T) {
+func makeTest(name string, snapshotterFn func(ctx context.Context, root string) (snapshot.Snapshotter, func(context.Context) error, error), fn func(ctx context.Context, t *testing.T, snapshotter snapshot.Snapshotter, work string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 
@@ -75,7 +75,7 @@ func makeTest(name string, snapshotterFn func(ctx context.Context, root string) 
 		}
 		defer func() {
 			if cleanup != nil {
-				if err := cleanup(); err != nil {
+				if err := cleanup(ctx); err != nil {
 					t.Errorf("Cleanup failed: %v", err)
 				}
 			}

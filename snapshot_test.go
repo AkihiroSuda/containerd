@@ -9,7 +9,7 @@ import (
 	"github.com/containerd/containerd/snapshot/testsuite"
 )
 
-func newSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, func() error, error) {
+func newSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, func(context.Context) error, error) {
 	client, err := New(address)
 	if err != nil {
 		return nil, nil, err
@@ -17,7 +17,8 @@ func newSnapshotter(ctx context.Context, root string) (snapshot.Snapshotter, fun
 
 	sn := client.SnapshotService(DefaultSnapshotter)
 
-	return sn, func() error {
+	return sn, func(context.Context) error {
+		// no need to close remote snapshotter
 		return client.Close()
 	}, nil
 }

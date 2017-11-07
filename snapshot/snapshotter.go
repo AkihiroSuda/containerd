@@ -296,6 +296,9 @@ type Snapshotter interface {
 	// Walk all snapshots in the snapshotter. For each snapshot in the
 	// snapshotter, the function will be called.
 	Walk(ctx context.Context, fn func(context.Context, Info) error) error
+
+	// Close closes the snapshotter.
+	Close(ctx context.Context) error
 }
 
 // Opt allows setting mutable snapshot properties on creation
