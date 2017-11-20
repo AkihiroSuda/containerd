@@ -59,8 +59,10 @@ func sameFile(f1, f2 *currentPath) (bool, error) {
 		return eq, err
 	}
 
-	// If not a directory also check size, modtime, and content
-	if !f1.f.IsDir() {
+	// If not a directory nor a symlink, also check size, modtime, and content
+	f1IsDir := f1.f.IsDir()
+	f1IsSymlink := (f1.f.Mode() & os.ModeSymlink) == os.ModeSymlink
+	if !f1IsDir && !f1IsSymlink {
 		if f1.f.Size() != f2.f.Size() {
 			return false, nil
 		}

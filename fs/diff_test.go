@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/fs/fstest"
+	"github.com/containerd/containerd/testutil"
 	"github.com/pkg/errors"
 )
 
@@ -178,6 +179,23 @@ func TestUpdateWithSameTime(t *testing.T) {
 		Modify("/file-truncated-time-1"),
 		Modify("/file-truncated-time-2"),
 	}
+
+	if err := testDiffWithBase(l1, l2, diff); err != nil {
+		t.Fatalf("Failed diff with base: %+v", err)
+	}
+}
+
+// buildkit#172
+func TestSecondPrecisionChtimeNoFollow(t *testing.T) {
+	skipDiffTestOnWindows(t)
+	testutil.RequiresRoot(t)
+	l1 := fstest.Apply(
+		fstest.CreateFile("/foo", []byte("foo"), 0644),
+		fstest.Symlink("/foo", "/lnk0"),
+		fstest.ChtimeNoFollow("/lnk0", time.Unix(0, 0)), // nsec is 0
+	)
+	l2 := fstest.Apply()
+	diff := []TestChange{}
 
 	if err := testDiffWithBase(l1, l2, diff); err != nil {
 		t.Fatalf("Failed diff with base: %+v", err)
