@@ -126,20 +126,104 @@ func (b *snapshotter) Update(ctx context.Context, info snapshots.Info, fieldpath
 	return info, nil
 }
 
-// Usage retrieves the disk usage of the top-level snapshot.
+// Usage retrieves the disk usage of the snapshot.
+//
+// TODO(AkihiroSuda): support cancellation
+// TODO(AkihiroSuda): support returning compressed usage (rfer_cmpr, excl_cmpr)
+//
+// pseudocode:
+// ```
+// switch vertexType{
+//   case Root: return rfer
+//   case Leaf: return excl
+//   default:
+//     if x:= rfer - Usage(parentVertex); x > 0 { return x}
+//     [BUG, Not determined yet]
+// }
+// ```
 func (b *snapshotter) Usage(ctx context.Context, key string) (snapshots.Usage, error) {
-	panic("not implemented")
+	ctx, t, err := b.ms.TransactionContext(ctx, false)
+	if err != nil {
+		return snapshots.Usage{}, err
+	}
+	defer t.Rollback()
+	return b.usage(ctx, key)
+}
 
-	// TODO(stevvooe): Btrfs has a quota model where data can be exclusive to a
-	// snapshot or shared among other resources. We may find that this is the
-	// correct value to reoprt but the stability of the implementation is under
-	// question.
-	//
-	// In general, this has impact on the model we choose for reporting usage.
-	// Ideally, the value should allow aggregration. For overlay, this is
-	// simple since we can scan the diff directory to get a unique value. This
-	// breaks down when start looking the behavior when data is shared between
-	// snapshots, such as that for btrfs.
+func (b *snapshotter) usage(ctx context.Context, key string) (snapshots.Usage, error) {
+	id, info, _, err := storage.GetInfo(ctx, key)
+	if err != nil {
+		return snapshots.Usage{}, err
+	}
+	qg, err := b.qgroupInfo(ctx, id, info.Kind)
+	if err != nil {
+		return snapshots.Usage{}, err
+	}
+	isRootVertex, err := b.isRootVertex(ctx, info)
+	if err != nil {
+		return snapshots.Usage{}, err
+	}
+	if isRootVertex {
+		log.G(ctx).Debugf("vertex type of %q: root. returning refr as the usage", key)
+		return snapshots.Usage{Size: int64(qg.Referenced), Inodes: -1}, nil
+	}
+	isLeafVertex, err := b.isLeafVertex(ctx, info)
+	if err != nil {
+		return snapshots.Usage{}, err
+	}
+	if isLeafVertex {
+		log.G(ctx).Debugf("vertex type of %q: leaf. returning excl as the usage.", key)
+		return snapshots.Usage{Size: int64(qg.Exclusive), Inodes: -1}, nil
+	}
+	log.G(ctx).Debugf("vertex type of %q: others. returning refr - usage(%q) as the usage.", key, info.Parent)
+	parentUsage, err := b.usage(ctx, info.Parent)
+	if err != nil {
+		return snapshots.Usage{}, err
+	}
+	return snapshots.Usage{Size: int64(qg.Referenced) - parentUsage.Size, Inodes: -1}, nil
+}
+
+// qgroupInfo returns QGroupInfoItem (level-0)
+func (b *snapshotter) qgroupInfo(ctx context.Context, id string, k snapshots.Kind) (*btrfs.QGroupInfoItem, error) {
+	dir := "snapshots"
+	if k != snapshots.KindCommitted {
+		dir = strings.ToLower(k.String())
+	}
+	target := filepath.Join(b.root, dir, id)
+	subvolID, err := btrfs.SubvolID(target)
+	if err != nil {
+		return nil, err
+	}
+	qgItems, err := btrfs.QGroupInfo(target)
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not query %q. quota not enabled?", target)
+	}
+	for _, qgItem := range qgItems {
+		// http://sensille.com/qgroups.pdf
+		// Qgroups of level 0 get created automatically when a subvolume/snapshot gets created.
+		// The ID of the qgroup corresponds to the ID of the subvolume.
+		if qgItem.QGroupIDHigh == 0 && qgItem.QGroupIDLow == subvolID {
+			return qgItem, nil
+		}
+	}
+	return nil, errors.Errorf("no qgroup found for %q (ID %d)", target, subvolID)
+}
+
+func (b *snapshotter) isRootVertex(ctx context.Context, info snapshots.Info) (bool, error) {
+	return info.Parent == "", nil
+}
+
+func (b *snapshotter) isLeafVertex(ctx context.Context, info snapshots.Info) (bool, error) {
+	if info.Kind != snapshots.KindCommitted {
+		return true, nil
+	}
+	isLeaf := true
+	return isLeaf, storage.WalkInfo(ctx, func(xctx context.Context, xinfo snapshots.Info) error {
+		if xinfo.Parent == info.Name {
+			isLeaf = false
+		}
+		return nil
+	})
 }
 
 // Walk the committed snapshots.
