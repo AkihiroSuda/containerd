@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	_ "github.com/containerd/containerd/linux"

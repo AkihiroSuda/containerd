@@ -1,4 +1,4 @@
-package main
+package daemon
 
 // register containerd builtins here
 import (

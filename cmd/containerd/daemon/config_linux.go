@@ -1,6 +1,4 @@
-// +build !linux,!windows,!solaris
-
-package main
+package daemon
 
 import (
 	"github.com/containerd/containerd/defaults"
@@ -14,6 +12,7 @@ func defaultConfig() *server.Config {
 		GRPC: server.GRPCConfig{
 			Address: defaults.DefaultAddress,
 		},
+		NoSubreaper: false,
 		Debug: server.Debug{
 			Level:   "info",
 			Address: defaults.DefaultDebugAddress,

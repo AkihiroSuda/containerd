@@ -1,4 +1,6 @@
-package main
+// +build !linux,!windows,!solaris
+
+package daemon
 
 import (
 	"github.com/containerd/containerd/defaults"
