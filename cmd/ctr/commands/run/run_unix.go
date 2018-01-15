@@ -37,6 +37,9 @@ func init() {
 	}, cli.BoolFlag{
 		Name:  "no-pivot",
 		Usage: "disable use of pivot-root (linux only)",
+	}, cli.BoolFlag{
+		Name:  "rootless",
+		Usage: "generate rootless OCI spec (linux only)",
 	})
 }
 
@@ -109,6 +112,10 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 			Type: specs.LinuxNamespaceType(parts[0]),
 			Path: parts[1],
 		}))
+	}
+	if context.Bool("rootless") {
+		// needs to be the last
+		opts = append(opts, oci.WithRootless)
 	}
 	if context.IsSet("config") {
 		var s specs.Spec

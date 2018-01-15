@@ -34,6 +34,7 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/continuity/fs"
 	"github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/opencontainers/runc/libcontainer/specconv"
 	"github.com/opencontainers/runc/libcontainer/user"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -416,4 +417,13 @@ func getUIDGIDFromPath(root string, filter func(user.User) bool) (uid, gid uint3
 
 func isRootfsAbs(root string) bool {
 	return filepath.IsAbs(root)
+}
+
+// WithRootless sets the container to be rootless mode.
+func WithRootless(_ context.Context, _ Client, _ *containers.Container, s *specs.Spec) error {
+	specconv.ToRootless(s)
+	// without removing CgroupsPath, runc fails:
+	// "process_linux.go:279: applying cgroup configuration for process caused \"mkdir /sys/fs/cgroup/cpuset/default: permission denied\""
+	s.Linux.CgroupsPath = ""
+	return nil
 }
