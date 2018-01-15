@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/opencontainers/runc/libcontainer/specconv"
 	"github.com/opencontainers/runc/libcontainer/user"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -343,4 +344,13 @@ func WithUsername(username string) SpecOpts {
 			return nil
 		})
 	}
+}
+
+// WithRootless sets the container to be rootless mode.
+func WithRootless(_ context.Context, _ Client, _ *containers.Container, s *specs.Spec) error {
+	specconv.ToRootless(s)
+	// without removing CgroupsPath, runc fails:
+	// "process_linux.go:279: applying cgroup configuration for process caused \"mkdir /sys/fs/cgroup/cpuset/default: permission denied\""
+	s.Linux.CgroupsPath = ""
+	return nil
 }

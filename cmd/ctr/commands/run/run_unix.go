@@ -19,6 +19,9 @@ func init() {
 	}, cli.BoolFlag{
 		Name:  "no-pivot",
 		Usage: "disable use of pivot-root (linux only)",
+	}, cli.BoolFlag{
+		Name:  "rootless",
+		Usage: "generate rootless OCI spec (linux only)",
 	})
 }
 
@@ -74,6 +77,10 @@ func newContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 	}
 	if context.Bool("net-host") {
 		opts = append(opts, oci.WithHostNamespace(specs.NetworkNamespace), oci.WithHostHostsFile, oci.WithHostResolvconf)
+	}
+	if context.Bool("rootless") {
+		// needs to be the last
+		opts = append(opts, oci.WithRootless)
 	}
 	// oci.WithImageConfig (WithUsername, WithUserID) depends on rootfs snapshot for resolving /etc/passwd.
 	// So cOpts needs to have precedence over opts.
