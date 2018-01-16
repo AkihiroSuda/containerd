@@ -17,6 +17,10 @@ var startCommand = cli.Command{
 			Name:  "null-io",
 			Usage: "send all IO to /dev/null",
 		},
+		cli.StringFlag{
+			Name:  "fifo-dir",
+			Usage: "directory used for storing IO FIFOs",
+		},
 	},
 	Action: func(context *cli.Context) error {
 		var (
@@ -45,7 +49,7 @@ var startCommand = cli.Command{
 			tty  = spec.Process.Terminal
 			opts = getNewTaskOpts(context)
 		)
-		task, err := NewTask(ctx, client, container, "", tty, context.Bool("null-io"), opts...)
+		task, err := NewTask(ctx, client, container, "", tty, context.Bool("null-io"), context.String("fifo-dir"), opts...)
 		if err != nil {
 			return err
 		}

@@ -51,12 +51,12 @@ func HandleConsoleResize(ctx gocontext.Context, task resizer, con console.Consol
 }
 
 // NewTask creates a new task
-func NewTask(ctx gocontext.Context, client *containerd.Client, container containerd.Container, checkpoint string, tty, nullIO bool, opts ...containerd.NewTaskOpts) (containerd.Task, error) {
-	stdio := cio.NewCreator(cio.WithStdio)
+func NewTask(ctx gocontext.Context, client *containerd.Client, container containerd.Container, checkpoint string, tty, nullIO bool, fifoDir string, opts ...containerd.NewTaskOpts) (containerd.Task, error) {
+	stdio := cio.NewCreator(cio.WithStdio, cio.WithFIFODir(fifoDir))
 	if checkpoint == "" {
 		ioCreator := stdio
 		if tty {
-			ioCreator = cio.NewCreator(cio.WithStdio, cio.WithTerminal)
+			ioCreator = cio.NewCreator(cio.WithStdio, cio.WithTerminal, cio.WithFIFODir(fifoDir))
 		}
 		if nullIO {
 			if tty {

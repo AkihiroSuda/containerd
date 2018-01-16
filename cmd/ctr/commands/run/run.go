@@ -170,6 +170,10 @@ var Command = cli.Command{
 			Name:  "detach,d",
 			Usage: "detach from the task after it has started execution",
 		},
+		cli.StringFlag{
+			Name:  "fifo-dir",
+			Usage: "directory used for storing IO FIFOs",
+		},
 	}, commands.SnapshotterFlags...),
 	Action: func(context *cli.Context) error {
 		var (
@@ -200,7 +204,7 @@ var Command = cli.Command{
 			defer container.Delete(ctx, containerd.WithSnapshotCleanup)
 		}
 		opts := getNewTaskOpts(context)
-		task, err := tasks.NewTask(ctx, client, container, context.String("checkpoint"), tty, context.Bool("null-io"), opts...)
+		task, err := tasks.NewTask(ctx, client, container, context.String("checkpoint"), tty, context.Bool("null-io"), context.String("fifo-dir"), opts...)
 		if err != nil {
 			return err
 		}
