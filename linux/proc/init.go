@@ -176,6 +176,7 @@ func New(context context.Context, path, workDir, runtimeRoot, namespace, criu st
 		IO:           p.io,
 		NoPivot:      options.NoPivotRoot,
 		NoNewKeyring: options.NoNewKeyring,
+		// ForceMappingTool: true,
 	}
 	if socket != nil {
 		opts.ConsoleSocket = socket
