@@ -42,7 +42,7 @@ func HandleConsoleResize(ctx gocontext.Context, task resizer, con console.Consol
 }
 
 // NewTask creates a new task
-func NewTask(ctx gocontext.Context, client *containerd.Client, container containerd.Container, _ string, tty, nullIO bool, opts ...containerd.NewTaskOpts) (containerd.Task, error) {
+func NewTask(ctx gocontext.Context, client *containerd.Client, container containerd.Container, _ string, tty, nullIO bool, _fifoDir string, opts ...containerd.NewTaskOpts) (containerd.Task, error) {
 	ioCreator := cio.NewCreator(cio.WithStdio)
 	if tty {
 		ioCreator = cio.NewCreator(cio.WithStdio, cio.WithTerminal)
