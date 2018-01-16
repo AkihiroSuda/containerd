@@ -348,7 +348,10 @@ func WithUsername(username string) SpecOpts {
 
 // WithRootless sets the container to be rootless mode.
 func WithRootless(_ context.Context, _ Client, _ *containers.Container, s *specs.Spec) error {
-	specconv.ToRootless(s)
+	err := specconv.ToRootless(s, &specconv.RootlessOpts{MapSubUIDGID: true})
+	if err != nil {
+		return err
+	}
 	// without removing CgroupsPath, runc fails:
 	// "process_linux.go:279: applying cgroup configuration for process caused \"mkdir /sys/fs/cgroup/cpuset/default: permission denied\""
 	s.Linux.CgroupsPath = ""

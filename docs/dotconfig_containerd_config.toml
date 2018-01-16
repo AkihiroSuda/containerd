@@ -1,0 +1,17 @@
+root = "/home/suda/.local/share/containerd"
+state = "/run/user/1001/containerd"
+subreaper = false
+oom_score = 0
+
+[grpc]
+  address = "/run/user/1001/containerd/containerd.sock"
+
+[debug]
+  level = "debug"
+  address = "/run/user/1001/containerd/debug.sock"
+
+[metrics]
+  address = ""
+
+[plugins.linux]
+  runtime_root = "/run/user/1001/containerd/runc"
