@@ -188,10 +188,11 @@ func New(context context.Context, path, workDir, runtimeRoot, namespace, criu st
 		return p, nil
 	}
 	opts := &runc.CreateOpts{
-		PidFile:      pidFile,
-		IO:           p.io,
-		NoPivot:      options.NoPivotRoot,
-		NoNewKeyring: options.NoNewKeyring,
+		PidFile:          pidFile,
+		IO:               p.io,
+		NoPivot:          options.NoPivotRoot,
+		NoNewKeyring:     options.NoNewKeyring,
+		ForceMappingTool: true, // TODO: optional
 	}
 	if socket != nil {
 		opts.ConsoleSocket = socket
