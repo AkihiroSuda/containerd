@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd/filters"
 	"github.com/containerd/containerd/log"
 	digest "github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
 
@@ -103,7 +104,9 @@ func (s *store) info(dgst digest.Digest, fi os.FileInfo, labels map[string]strin
 }
 
 // ReaderAt returns an io.ReaderAt for the blob.
-func (s *store) ReaderAt(ctx context.Context, dgst digest.Digest) (content.ReaderAt, error) {
+// MediaType is not used.
+func (s *store) ReaderAt(ctx context.Context, desc ocispec.Descriptor) (content.ReaderAt, error) {
+	dgst := desc.Digest
 	p := s.blobPath(dgst)
 	fi, err := os.Stat(p)
 	if err != nil {
@@ -384,7 +387,9 @@ func (s *store) total(ingestPath string) int64 {
 // ref at a time.
 //
 // The argument `ref` is used to uniquely identify a long-lived writer transaction.
-func (s *store) Writer(ctx context.Context, ref string, total int64, expected digest.Digest) (content.Writer, error) {
+//
+// MediaType is not used.
+func (s *store) Writer(ctx context.Context, ref string, desc ocispec.Descriptor) (content.Writer, error) {
 	var lockErr error
 	for count := uint64(0); count < 10; count++ {
 		time.Sleep(time.Millisecond * time.Duration(rand.Intn(1<<count)))
@@ -404,7 +409,7 @@ func (s *store) Writer(ctx context.Context, ref string, total int64, expected di
 		return nil, lockErr
 	}
 
-	w, err := s.writer(ctx, ref, total, expected)
+	w, err := s.writer(ctx, ref, desc.Size, desc.Digest)
 	if err != nil {
 		unlock(ref)
 		return nil, err

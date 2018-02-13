@@ -75,7 +75,7 @@ func fetch(ctx context.Context, ingester content.Ingester, fetcher Fetcher, desc
 		retry = 16
 	)
 	for {
-		cw, err = ingester.Writer(ctx, ref, desc.Size, desc.Digest)
+		cw, err = ingester.Writer(ctx, ref, desc)
 		if err != nil {
 			if errdefs.IsAlreadyExists(err) {
 				return nil
@@ -152,7 +152,7 @@ func push(ctx context.Context, provider content.Provider, pusher Pusher, desc oc
 	}
 	defer cw.Close()
 
-	ra, err := provider.ReaderAt(ctx, desc.Digest)
+	ra, err := provider.ReaderAt(ctx, desc)
 	if err != nil {
 		return err
 	}
