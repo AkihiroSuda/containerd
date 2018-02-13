@@ -159,7 +159,7 @@ func setGCRefContentLabels(ctx context.Context, store content.Store, desc ocispe
 		}
 		return err
 	}
-	ra, err := store.ReaderAt(ctx, desc.Digest)
+	ra, err := store.ReaderAt(ctx, desc)
 	if err != nil {
 		return err
 	}

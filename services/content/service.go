@@ -14,6 +14,7 @@ import (
 	"github.com/containerd/containerd/plugin"
 	ptypes "github.com/gogo/protobuf/types"
 	digest "github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
@@ -169,7 +170,9 @@ func (s *service) Read(req *api.ReadContentRequest, session api.Content_ReadServ
 		return errdefs.ToGRPC(err)
 	}
 
-	ra, err := s.store.ReaderAt(session.Context(), req.Digest)
+	ra, err := s.store.ReaderAt(session.Context(), ocispec.Descriptor{
+		Digest: req.Digest,
+	})
 	if err != nil {
 		return errdefs.ToGRPC(err)
 	}
@@ -322,7 +325,10 @@ func (s *service) Write(session api.Content_WriteServer) (err error) {
 
 	log.G(ctx).Debug("(*service).Write started")
 	// this action locks the writer for the session.
-	wr, err := s.store.Writer(ctx, ref, total, expected)
+	wr, err := s.store.Writer(ctx, ref, ocispec.Descriptor{
+		Size:   total,
+		Digest: expected,
+	})
 	if err != nil {
 		return errdefs.ToGRPC(err)
 	}

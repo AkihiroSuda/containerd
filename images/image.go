@@ -267,7 +267,7 @@ func Check(ctx context.Context, provider content.Provider, image ocispec.Descrip
 	required = append([]ocispec.Descriptor{mfst.Config}, mfst.Layers...)
 
 	for _, desc := range required {
-		ra, err := provider.ReaderAt(ctx, desc.Digest)
+		ra, err := provider.ReaderAt(ctx, desc)
 		if err != nil {
 			if errdefs.IsNotFound(err) {
 				missing = append(missing, desc)

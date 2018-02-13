@@ -9,6 +9,7 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	protobuftypes "github.com/gogo/protobuf/types"
 	digest "github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type remoteContent struct {
@@ -71,7 +72,9 @@ func (rs *remoteContent) Delete(ctx context.Context, dgst digest.Digest) error {
 	return nil
 }
 
-func (rs *remoteContent) ReaderAt(ctx context.Context, dgst digest.Digest) (content.ReaderAt, error) {
+// ReaderAt ignores MediaType.
+func (rs *remoteContent) ReaderAt(ctx context.Context, desc ocispec.Descriptor) (content.ReaderAt, error) {
+	dgst := desc.Digest
 	i, err := rs.Info(ctx, dgst)
 	if err != nil {
 		return nil, err
@@ -140,8 +143,8 @@ func (rs *remoteContent) ListStatuses(ctx context.Context, filters ...string) ([
 	return statuses, nil
 }
 
-func (rs *remoteContent) Writer(ctx context.Context, ref string, size int64, expected digest.Digest) (content.Writer, error) {
-	wrclient, offset, err := rs.negotiate(ctx, ref, size, expected)
+func (rs *remoteContent) Writer(ctx context.Context, ref string, desc ocispec.Descriptor) (content.Writer, error) {
+	wrclient, offset, err := rs.negotiate(ctx, ref, desc.Size, desc.Digest)
 	if err != nil {
 		return nil, errdefs.FromGRPC(err)
 	}

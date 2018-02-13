@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd/testutil"
 	"github.com/gotestyourself/gotestyourself/assert"
 	digest "github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
 
@@ -32,6 +33,9 @@ func ContentSuite(t *testing.T, name string, storeFn func(ctx context.Context, r
 	t.Run("ResumeCopySeeker", makeTest(t, name, storeFn, checkResume(resumeCopySeeker)))
 	t.Run("ResumeCopyReaderAt", makeTest(t, name, storeFn, checkResume(resumeCopyReaderAt)))
 	t.Run("Labels", makeTest(t, name, storeFn, checkLabels))
+	t.Run("MediaType", makeTest(t, name, storeFn, func(ctx context.Context, t *testing.T, cs content.Store) {
+		TestMediaType(t, cs)
+	}))
 }
 
 func makeTest(t *testing.T, name string, storeFn func(ctx context.Context, root string) (context.Context, content.Store, func() error, error), fn func(ctx context.Context, t *testing.T, cs content.Store)) func(t *testing.T) {
@@ -65,28 +69,28 @@ var labels = map[string]string{
 
 func checkContentStoreWriter(ctx context.Context, t *testing.T, cs content.Store) {
 	c1, d1 := createContent(256)
-	w1, err := cs.Writer(ctx, "c1", 0, "")
+	w1, err := cs.Writer(ctx, "c1", ocispec.Descriptor{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer w1.Close()
 
 	c2, d2 := createContent(256)
-	w2, err := cs.Writer(ctx, "c2", int64(len(c2)), "")
+	w2, err := cs.Writer(ctx, "c2", ocispec.Descriptor{Size: int64(len(c2))})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer w2.Close()
 
 	c3, d3 := createContent(256)
-	w3, err := cs.Writer(ctx, "c3", 0, d3)
+	w3, err := cs.Writer(ctx, "c3", ocispec.Descriptor{Digest: d3})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer w3.Close()
 
 	c4, d4 := createContent(256)
-	w4, err := cs.Writer(ctx, "c4", int64(len(c4)), d4)
+	w4, err := cs.Writer(ctx, "c4", ocispec.Descriptor{Size: int64(len(c4)), Digest: d4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +173,7 @@ func checkResumeWriter(ctx context.Context, t *testing.T, cs content.Store) {
 	)
 
 	preStart := time.Now()
-	w1, err := cs.Writer(ctx, ref, 256, dgst)
+	w1, err := cs.Writer(ctx, ref, ocispec.Descriptor{Size: 256, Digest: dgst})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +194,7 @@ func checkResumeWriter(ctx context.Context, t *testing.T, cs content.Store) {
 	checkStatus(t, w1, expected, dgstFirst, preStart, postStart, preUpdate, postUpdate)
 	assert.NilError(t, w1.Close(), "close first writer")
 
-	w2, err := cs.Writer(ctx, ref, 256, dgst)
+	w2, err := cs.Writer(ctx, ref, ocispec.Descriptor{Size: 256, Digest: dgst})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +231,7 @@ func checkUpdateStatus(ctx context.Context, t *testing.T, cs content.Store) {
 	c1, d1 := createContent(256)
 
 	preStart := time.Now()
-	w1, err := cs.Writer(ctx, "c1", 256, d1)
+	w1, err := cs.Writer(ctx, "c1", ocispec.Descriptor{Size: 256, Digest: d1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +299,7 @@ func checkUpdateStatus(ctx context.Context, t *testing.T, cs content.Store) {
 func checkLabels(ctx context.Context, t *testing.T, cs content.Store) {
 	c1, d1 := createContent(256)
 
-	w1, err := cs.Writer(ctx, "c1", 256, d1)
+	w1, err := cs.Writer(ctx, "c1", ocispec.Descriptor{Size: 256, Digest: d1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +374,7 @@ func checkResume(rf func(context.Context, content.Writer, []byte, int64, int64, 
 				limit := int64(float64(size) * tp)
 				ref := fmt.Sprintf("ref-%d-%d", i, j)
 
-				w, err := cs.Writer(ctx, ref, size, d)
+				w, err := cs.Writer(ctx, ref, ocispec.Descriptor{Size: size, Digest: d})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -384,7 +388,7 @@ func checkResume(rf func(context.Context, content.Writer, []byte, int64, int64, 
 					t.Fatal(err)
 				}
 
-				w, err = cs.Writer(ctx, ref, size, d)
+				w, err = cs.Writer(ctx, ref, ocispec.Descriptor{Size: size, Digest: d})
 				if err != nil {
 					t.Fatal(err)
 				}
