@@ -8,6 +8,7 @@ import (
 
 	"github.com/containerd/containerd/errdefs"
 	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
 
@@ -28,7 +29,10 @@ func NewReader(ra ReaderAt) io.Reader {
 //
 // Avoid using this for large blobs, such as layers.
 func ReadBlob(ctx context.Context, provider Provider, dgst digest.Digest) ([]byte, error) {
-	ra, err := provider.ReaderAt(ctx, dgst)
+	desc := ocispec.Descriptor{
+		Digest: dgst,
+	}
+	ra, err := provider.ReaderAt(ctx, desc)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +52,11 @@ func ReadBlob(ctx context.Context, provider Provider, dgst digest.Digest) ([]byt
 //
 // Copy is buffered, so no need to wrap reader in buffered io.
 func WriteBlob(ctx context.Context, cs Ingester, ref string, r io.Reader, size int64, expected digest.Digest, opts ...Opt) error {
-	cw, err := cs.Writer(ctx, ref, size, expected)
+	desc := ocispec.Descriptor{
+		Size:   size,
+		Digest: expected,
+	}
+	cw, err := cs.Writer(ctx, ref, &desc)
 	if err != nil {
 		if !errdefs.IsAlreadyExists(err) {
 			return err
