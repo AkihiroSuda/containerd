@@ -23,6 +23,7 @@ import (
 	"github.com/containerd/containerd/testutil"
 	"github.com/gotestyourself/gotestyourself/assert"
 	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type memoryLabelStore struct {
@@ -92,7 +93,7 @@ func TestContentWriter(t *testing.T) {
 		t.Fatal("ingest dir should be created", err)
 	}
 
-	cw, err := cs.Writer(ctx, "myref", 0, "")
+	cw, err := cs.Writer(ctx, "myref", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,13 +102,13 @@ func TestContentWriter(t *testing.T) {
 	}
 
 	// reopen, so we can test things
-	cw, err = cs.Writer(ctx, "myref", 0, "")
+	cw, err = cs.Writer(ctx, "myref", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// make sure that second resume also fails
-	if _, err = cs.Writer(ctx, "myref", 0, ""); err == nil {
+	if _, err = cs.Writer(ctx, "myref", nil); err == nil {
 		// TODO(stevvooe): This also works across processes. Need to find a way
 		// to test that, as well.
 		t.Fatal("no error on second resume")
@@ -150,7 +151,7 @@ func TestContentWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cw, err = cs.Writer(ctx, "aref", 0, "")
+	cw, err = cs.Writer(ctx, "aref", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +354,7 @@ func TestWriterTruncateRecoversFromIncompleteWrite(t *testing.T) {
 	total := int64(len(content))
 	setupIncompleteWrite(ctx, t, cs, ref, total)
 
-	writer, err := cs.Writer(ctx, ref, total, "")
+	writer, err := cs.Writer(ctx, ref, &ocispec.Descriptor{Size: total})
 	assert.NilError(t, err)
 
 	assert.NilError(t, writer.Truncate(0))
@@ -367,7 +368,7 @@ func TestWriterTruncateRecoversFromIncompleteWrite(t *testing.T) {
 }
 
 func setupIncompleteWrite(ctx context.Context, t *testing.T, cs content.Store, ref string, total int64) {
-	writer, err := cs.Writer(ctx, ref, total, "")
+	writer, err := cs.Writer(ctx, ref, &ocispec.Descriptor{Size: total})
 	assert.NilError(t, err)
 
 	_, err = writer.Write([]byte("bad data"))

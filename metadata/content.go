@@ -16,6 +16,7 @@ import (
 	"github.com/containerd/containerd/metadata/boltutil"
 	"github.com/containerd/containerd/namespaces"
 	digest "github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
 
@@ -309,7 +310,11 @@ func (cs *contentStore) Abort(ctx context.Context, ref string) error {
 
 }
 
-func (cs *contentStore) Writer(ctx context.Context, ref string, size int64, expected digest.Digest) (content.Writer, error) {
+func (cs *contentStore) Writer(ctx context.Context, ref string, desc *ocispec.Descriptor) (content.Writer, error) {
+	expected := digest.Digest("")
+	if desc != nil {
+		expected = desc.Digest
+	}
 	ns, err := namespaces.NamespaceRequired(ctx)
 	if err != nil {
 		return nil, err
@@ -369,7 +374,7 @@ func (cs *contentStore) Writer(ctx context.Context, ref string, size int64, expe
 		// to allow content which exists in content store but not
 		// namespace to be linked here and returned an exist error, but
 		// this would require more configuration to make secure.
-		w, err = cs.Store.Writer(ctx, bref, size, "")
+		w, err = cs.Store.Writer(ctx, bref, desc)
 		return err
 	}); err != nil {
 		return nil, err
@@ -476,11 +481,11 @@ func (nw *namespacedWriter) Status() (content.Status, error) {
 	return st, err
 }
 
-func (cs *contentStore) ReaderAt(ctx context.Context, dgst digest.Digest) (content.ReaderAt, error) {
-	if err := cs.checkAccess(ctx, dgst); err != nil {
+func (cs *contentStore) ReaderAt(ctx context.Context, desc ocispec.Descriptor) (content.ReaderAt, error) {
+	if err := cs.checkAccess(ctx, desc.Digest); err != nil {
 		return nil, err
 	}
-	return cs.Store.ReaderAt(ctx, dgst)
+	return cs.Store.ReaderAt(ctx, desc)
 }
 
 func (cs *contentStore) checkAccess(ctx context.Context, dgst digest.Digest) error {
