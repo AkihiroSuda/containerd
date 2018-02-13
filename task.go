@@ -25,6 +25,7 @@ import (
 	google_protobuf "github.com/gogo/protobuf/types"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go/v1"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
 )
@@ -573,7 +574,7 @@ func (t *task) writeIndex(ctx context.Context, index *v1.Index) (d v1.Descriptor
 }
 
 func writeContent(ctx context.Context, store content.Ingester, mediaType, ref string, r io.Reader, opts ...content.Opt) (d v1.Descriptor, err error) {
-	writer, err := store.Writer(ctx, ref, 0, "")
+	writer, err := store.Writer(ctx, ref, ocispec.Descriptor{})
 	if err != nil {
 		return d, err
 	}

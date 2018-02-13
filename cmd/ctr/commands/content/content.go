@@ -56,7 +56,7 @@ var (
 			}
 			defer cancel()
 			cs := client.ContentStore()
-			ra, err := cs.ReaderAt(ctx, dgst)
+			ra, err := cs.ReaderAt(ctx, ocispec.Descriptor{Digest: dgst})
 			if err != nil {
 				return err
 			}
@@ -298,7 +298,7 @@ var (
 			}
 			defer cancel()
 			cs := client.ContentStore()
-			ra, err := cs.ReaderAt(ctx, dgst)
+			ra, err := cs.ReaderAt(ctx, ocispec.Descriptor{Digest: dgst})
 			if err != nil {
 				return err
 			}
@@ -310,7 +310,7 @@ var (
 			}
 			defer nrc.Close()
 
-			wr, err := cs.Writer(ctx, "edit-"+object, 0, "") // TODO(stevvooe): Choose a better key?
+			wr, err := cs.Writer(ctx, "edit-"+object, ocispec.Descriptor{}) // TODO(stevvooe): Choose a better key?
 			if err != nil {
 				return err
 			}
@@ -466,7 +466,7 @@ var (
 				Size:      info.Size,
 			}
 
-			ra, err := cs.ReaderAt(ctx, dgst)
+			ra, err := cs.ReaderAt(ctx, desc)
 			if err != nil {
 				return err
 			}

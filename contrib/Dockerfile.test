@@ -19,6 +19,9 @@ COPY vendor.conf /go/src/github.com/containerd/containerd/vendor.conf
 COPY script/setup/install-runc install-runc
 RUN ./install-runc
 
+# Install registry (for test)
+FROM registry:2.6 AS registry
+
 FROM golang:1.9.3
 RUN apt-get update && apt-get install -y btrfs-tools gcc git libapparmor-dev libseccomp-dev make xfsprogs
 
@@ -26,6 +29,7 @@ COPY --from=proto3 /usr/local/bin/protoc /usr/local/bin/protoc
 COPY --from=proto3 /usr/local/include/google /usr/local/include/google
 
 COPY --from=runc /usr/local/sbin/runc /usr/local/go/bin/runc
+COPY --from=registry /bin/registry /usr/bin
 COPY . /go/src/github.com/containerd/containerd
 
 WORKDIR /go/src/github.com/containerd/containerd
