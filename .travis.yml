@@ -43,6 +43,7 @@ install:
   - protoc --version
   - go get -u github.com/vbatts/git-validation
   - sudo PATH=$PATH GOPATH=$GOPATH script/setup/install-runc
+  - sudo PATH=$PATH GOPATH=$GOPATH script/setup/install-registry
   - wget https://github.com/xemul/criu/archive/v3.0.tar.gz -O /tmp/criu.tar.gz
   - tar -C /tmp/ -zxf /tmp/criu.tar.gz
   - cd /tmp/criu-3.0 && sudo make install-criu

@@ -240,19 +240,19 @@ func (c *Converter) fetchBlob(ctx context.Context, desc ocispec.Descriptor) erro
 	log.G(ctx).Debug("fetch blob")
 
 	var (
-		ref   = remotes.MakeRefKey(ctx, desc)
-		calc  = newBlobStateCalculator()
-		retry = 16
-		size  = desc.Size
+		ref        = remotes.MakeRefKey(ctx, desc)
+		calc       = newBlobStateCalculator()
+		retry      = 16
+		writerDesc = desc
 	)
 
 	// size may be unknown, set to zero for content ingest
-	if size == -1 {
-		size = 0
+	if writerDesc.Size == -1 {
+		writerDesc.Size = 0
 	}
 
 tryit:
-	cw, err := c.contentStore.Writer(ctx, ref, size, desc.Digest)
+	cw, err := c.contentStore.Writer(ctx, ref, writerDesc)
 	if err != nil {
 		if errdefs.IsUnavailable(err) {
 			select {
@@ -271,7 +271,7 @@ tryit:
 		// TODO: Check if blob -> diff id mapping already exists
 		// TODO: Check if blob empty label exists
 
-		ra, err := c.contentStore.ReaderAt(ctx, desc.Digest)
+		ra, err := c.contentStore.ReaderAt(ctx, desc)
 		if err != nil {
 			return err
 		}
@@ -314,7 +314,7 @@ tryit:
 		eg.Go(func() error {
 			defer pw.Close()
 
-			return content.Copy(ctx, cw, io.TeeReader(rc, pw), size, desc.Digest)
+			return content.Copy(ctx, cw, io.TeeReader(rc, pw), writerDesc.Size, desc.Digest)
 		})
 
 		if err := eg.Wait(); err != nil {

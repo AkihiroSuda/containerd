@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+#
+# Builds and installs registry to /usr/local/bin.
+# registry is only used for testing.
+# TODO(AkihiroSuda): use pre-built static binary
+
+set -eu -o pipefail
+
+go get -u github.com/docker/distribution
+cd $GOPATH/src/github.com/docker/distribution
+git checkout v2.6.2
+make binaries
+cp bin/registry /usr/local/bin
