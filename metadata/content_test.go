@@ -32,6 +32,7 @@ import (
 	"github.com/containerd/containerd/leases"
 	"github.com/containerd/containerd/namespaces"
 	digest "github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
 
@@ -79,7 +80,11 @@ func TestContentLeased(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := content.WriteBlob(lctx, cs, "test-1", bytes.NewReader(blob), int64(len(blob)), expected); err != nil {
+	desc := ocispec.Descriptor{
+		Size:   int64(len(blob)),
+		Digest: expected,
+	}
+	if err := content.WriteBlob(lctx, cs, "test-1", bytes.NewReader(blob), desc); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkContentLeased(lctx, db, expected); err != nil {
@@ -91,7 +96,7 @@ func TestContentLeased(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := cs.Writer(lctx, "test-2", int64(len(blob)), expected); err == nil {
+	if _, err := cs.Writer(lctx, "test-2", desc); err == nil {
 		t.Fatal("expected already exist error")
 	} else if !errdefs.IsAlreadyExists(err) {
 		t.Fatal(err)

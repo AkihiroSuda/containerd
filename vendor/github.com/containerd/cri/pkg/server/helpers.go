@@ -321,7 +321,7 @@ func getImageInfo(ctx context.Context, image containerd.Image) (*imageInfo, erro
 	}
 	id := desc.Digest.String()
 
-	rb, err := content.ReadBlob(ctx, image.ContentStore(), desc.Digest)
+	rb, err := content.ReadBlob(ctx, image.ContentStore(), desc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read image config from content store: %v", err)
 	}

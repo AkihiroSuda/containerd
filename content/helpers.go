@@ -24,6 +24,7 @@ import (
 
 	"github.com/containerd/containerd/errdefs"
 	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
 
@@ -43,8 +44,8 @@ func NewReader(ra ReaderAt) io.Reader {
 // ReadBlob retrieves the entire contents of the blob from the provider.
 //
 // Avoid using this for large blobs, such as layers.
-func ReadBlob(ctx context.Context, provider Provider, dgst digest.Digest) ([]byte, error) {
-	ra, err := provider.ReaderAt(ctx, dgst)
+func ReadBlob(ctx context.Context, provider Provider, desc ocispec.Descriptor) ([]byte, error) {
+	ra, err := provider.ReaderAt(ctx, desc)
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +64,8 @@ func ReadBlob(ctx context.Context, provider Provider, dgst digest.Digest) ([]byt
 // This is useful when the digest and size are known beforehand.
 //
 // Copy is buffered, so no need to wrap reader in buffered io.
-func WriteBlob(ctx context.Context, cs Ingester, ref string, r io.Reader, size int64, expected digest.Digest, opts ...Opt) error {
-	cw, err := cs.Writer(ctx, ref, size, expected)
+func WriteBlob(ctx context.Context, cs Ingester, ref string, r io.Reader, desc ocispec.Descriptor, opts ...Opt) error {
+	cw, err := cs.Writer(ctx, ref, desc)
 	if err != nil {
 		if !errdefs.IsAlreadyExists(err) {
 			return err
@@ -74,7 +75,7 @@ func WriteBlob(ctx context.Context, cs Ingester, ref string, r io.Reader, size i
 	}
 	defer cw.Close()
 
-	return Copy(ctx, cw, r, size, expected, opts...)
+	return Copy(ctx, cw, r, desc.Size, desc.Digest, opts...)
 }
 
 // Copy copies data with the expected digest from the reader into the

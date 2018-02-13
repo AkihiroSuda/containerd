@@ -38,7 +38,7 @@ func (ra *remoteReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
 	rr := &contentapi.ReadContentRequest{
 		Digest: ra.digest,
 		Offset: off,
-		Size_:  int64(len(p)),
+		Size_:  int64(len(p)), // this is buffer size, not the expected size of the blob!
 	}
 	rc, err := ra.client.Read(ra.ctx, rr)
 	if err != nil {

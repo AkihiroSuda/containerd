@@ -36,9 +36,9 @@ import (
 	"github.com/containerd/containerd/platforms"
 	"github.com/gogo/protobuf/proto"
 	protobuf "github.com/gogo/protobuf/types"
-	digest "github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/identity"
 	"github.com/opencontainers/image-spec/specs-go/v1"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
 
@@ -50,10 +50,9 @@ func WithCheckpoint(im Image, snapshotKey string) NewContainerOpts {
 	return func(ctx context.Context, client *Client, c *containers.Container) error {
 		var (
 			desc  = im.Target()
-			id    = desc.Digest
 			store = client.ContentStore()
 		)
-		index, err := decodeIndex(ctx, store, id)
+		index, err := decodeIndex(ctx, store, desc)
 		if err != nil {
 			return err
 		}
@@ -80,7 +79,7 @@ func WithCheckpoint(im Image, snapshotKey string) NewContainerOpts {
 				}
 				c.Image = index.Annotations["image.name"]
 			case images.MediaTypeContainerd1CheckpointConfig:
-				data, err := content.ReadBlob(ctx, store, m.Digest)
+				data, err := content.ReadBlob(ctx, store, m)
 				if err != nil {
 					return errors.Wrap(err, "unable to read checkpoint config")
 				}
@@ -112,8 +111,7 @@ func WithCheckpoint(im Image, snapshotKey string) NewContainerOpts {
 func WithTaskCheckpoint(im Image) NewTaskOpts {
 	return func(ctx context.Context, c *Client, info *TaskInfo) error {
 		desc := im.Target()
-		id := desc.Digest
-		index, err := decodeIndex(ctx, c.ContentStore(), id)
+		index, err := decodeIndex(ctx, c.ContentStore(), desc)
 		if err != nil {
 			return err
 		}
@@ -127,13 +125,13 @@ func WithTaskCheckpoint(im Image) NewTaskOpts {
 				return nil
 			}
 		}
-		return fmt.Errorf("checkpoint not found in index %s", id)
+		return fmt.Errorf("checkpoint not found in index %s", desc.Digest)
 	}
 }
 
-func decodeIndex(ctx context.Context, store content.Provider, id digest.Digest) (*v1.Index, error) {
+func decodeIndex(ctx context.Context, store content.Provider, desc ocispec.Descriptor) (*v1.Index, error) {
 	var index v1.Index
-	p, err := content.ReadBlob(ctx, store, id)
+	p, err := content.ReadBlob(ctx, store, desc)
 	if err != nil {
 		return nil, err
 	}

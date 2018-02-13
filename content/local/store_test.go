@@ -39,6 +39,7 @@ import (
 	"github.com/containerd/containerd/testutil"
 	"github.com/gotestyourself/gotestyourself/assert"
 	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type memoryLabelStore struct {
@@ -108,7 +109,7 @@ func TestContentWriter(t *testing.T) {
 		t.Fatal("ingest dir should be created", err)
 	}
 
-	cw, err := cs.Writer(ctx, "myref", 0, "")
+	cw, err := cs.Writer(ctx, "myref", ocispec.Descriptor{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,13 +118,13 @@ func TestContentWriter(t *testing.T) {
 	}
 
 	// reopen, so we can test things
-	cw, err = cs.Writer(ctx, "myref", 0, "")
+	cw, err = cs.Writer(ctx, "myref", ocispec.Descriptor{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// make sure that second resume also fails
-	if _, err = cs.Writer(ctx, "myref", 0, ""); err == nil {
+	if _, err = cs.Writer(ctx, "myref", ocispec.Descriptor{}); err == nil {
 		// TODO(stevvooe): This also works across processes. Need to find a way
 		// to test that, as well.
 		t.Fatal("no error on second resume")
@@ -166,7 +167,7 @@ func TestContentWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cw, err = cs.Writer(ctx, "aref", 0, "")
+	cw, err = cs.Writer(ctx, "aref", ocispec.Descriptor{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +347,11 @@ func checkBlobPath(t *testing.T, cs content.Store, dgst digest.Digest) string {
 }
 
 func checkWrite(ctx context.Context, t checker, cs content.Store, dgst digest.Digest, p []byte) digest.Digest {
-	if err := content.WriteBlob(ctx, cs, dgst.String(), bytes.NewReader(p), int64(len(p)), dgst); err != nil {
+	desc := ocispec.Descriptor{
+		Size:   int64(len(p)),
+		Digest: dgst,
+	}
+	if err := content.WriteBlob(ctx, cs, dgst.String(), bytes.NewReader(p), desc); err != nil {
 		t.Fatal(err)
 	}
 
@@ -369,7 +374,7 @@ func TestWriterTruncateRecoversFromIncompleteWrite(t *testing.T) {
 	total := int64(len(content))
 	setupIncompleteWrite(ctx, t, cs, ref, total)
 
-	writer, err := cs.Writer(ctx, ref, total, "")
+	writer, err := cs.Writer(ctx, ref, ocispec.Descriptor{Size: total})
 	assert.NilError(t, err)
 
 	assert.NilError(t, writer.Truncate(0))
@@ -383,7 +388,7 @@ func TestWriterTruncateRecoversFromIncompleteWrite(t *testing.T) {
 }
 
 func setupIncompleteWrite(ctx context.Context, t *testing.T, cs content.Store, ref string, total int64) {
-	writer, err := cs.Writer(ctx, ref, total, "")
+	writer, err := cs.Writer(ctx, ref, ocispec.Descriptor{Size: total})
 	assert.NilError(t, err)
 
 	_, err = writer.Write([]byte("bad data"))

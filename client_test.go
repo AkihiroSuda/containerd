@@ -221,7 +221,7 @@ func TestImagePullAllPlatforms(t *testing.T) {
 		}
 		// check if childless data type has blob in content store
 		for _, desc := range children {
-			ra, err := cs.ReaderAt(ctx, desc.Digest)
+			ra, err := cs.ReaderAt(ctx, desc)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -282,7 +282,7 @@ func TestImagePullSomePlatforms(t *testing.T) {
 
 			// check if childless data type has blob in content store
 			for _, desc := range children {
-				ra, err := cs.ReaderAt(ctx, desc.Digest)
+				ra, err := cs.ReaderAt(ctx, desc)
 				if err != nil {
 					t.Fatal(err)
 				}

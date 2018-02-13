@@ -72,7 +72,7 @@ var (
 			}
 			defer cancel()
 			cs := client.ContentStore()
-			ra, err := cs.ReaderAt(ctx, dgst)
+			ra, err := cs.ReaderAt(ctx, ocispec.Descriptor{Digest: dgst})
 			if err != nil {
 				return err
 			}
@@ -121,7 +121,10 @@ var (
 			// TODO(stevvooe): Allow ingest to be reentrant. Currently, we expect
 			// all data to be written in a single invocation. Allow multiple writes
 			// to the same transaction key followed by a commit.
-			return content.WriteBlob(ctx, cs, ref, os.Stdin, expectedSize, expectedDigest)
+			return content.WriteBlob(ctx, cs, ref, os.Stdin, ocispec.Descriptor{
+				Size:   expectedSize,
+				Digest: expectedDigest,
+			})
 		},
 	}
 
@@ -314,7 +317,7 @@ var (
 			}
 			defer cancel()
 			cs := client.ContentStore()
-			ra, err := cs.ReaderAt(ctx, dgst)
+			ra, err := cs.ReaderAt(ctx, ocispec.Descriptor{Digest: dgst})
 			if err != nil {
 				return err
 			}
@@ -326,7 +329,7 @@ var (
 			}
 			defer nrc.Close()
 
-			wr, err := cs.Writer(ctx, "edit-"+object, 0, "") // TODO(stevvooe): Choose a better key?
+			wr, err := cs.Writer(ctx, "edit-"+object, ocispec.Descriptor{}) // TODO(stevvooe): Choose a better key?
 			if err != nil {
 				return err
 			}
@@ -482,7 +485,7 @@ var (
 				Size:      info.Size,
 			}
 
-			ra, err := cs.ReaderAt(ctx, dgst)
+			ra, err := cs.ReaderAt(ctx, desc)
 			if err != nil {
 				return err
 			}
