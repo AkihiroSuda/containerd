@@ -70,7 +70,7 @@ func (s *walkingDiff) Compare(ctx context.Context, lower, upper []mount.Mount, o
 				config.Reference = uniqueRef()
 			}
 
-			cw, err := s.store.Writer(ctx, config.Reference, &ocispec.Descriptor{
+			cw, err := s.store.Writer(ctx, config.Reference, ocispec.Descriptor{
 				MediaType: config.MediaType, // most contentstore implementations just ignore this.
 			})
 			if err != nil {

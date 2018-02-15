@@ -325,7 +325,7 @@ func (s *service) Write(session api.Content_WriteServer) (err error) {
 
 	log.G(ctx).Debug("(*service).Write started")
 	// this action locks the writer for the session.
-	wr, err := s.store.Writer(ctx, ref, &ocispec.Descriptor{
+	wr, err := s.store.Writer(ctx, ref, ocispec.Descriptor{
 		Size:   total,
 		Digest: expected,
 	})

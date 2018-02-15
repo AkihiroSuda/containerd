@@ -56,7 +56,7 @@ func WriteBlob(ctx context.Context, cs Ingester, ref string, r io.Reader, size i
 		Size:   size,
 		Digest: expected,
 	}
-	cw, err := cs.Writer(ctx, ref, &desc)
+	cw, err := cs.Writer(ctx, ref, desc)
 	if err != nil {
 		if !errdefs.IsAlreadyExists(err) {
 			return err

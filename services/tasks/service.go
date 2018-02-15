@@ -562,7 +562,7 @@ func getTasksMetrics(ctx context.Context, filter filters.Filter, tasks []runtime
 }
 
 func (s *service) writeContent(ctx context.Context, mediaType, ref string, r io.Reader) (*types.Descriptor, error) {
-	writer, err := s.store.Writer(ctx, ref, nil)
+	writer, err := s.store.Writer(ctx, ref, ocispec.Descriptor{})
 	if err != nil {
 		return nil, err
 	}

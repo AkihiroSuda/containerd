@@ -66,17 +66,14 @@ func (r *readerAt) Size() int64 {
 	return r.desc.Size
 }
 
-// ReaderAt implements content.Ingester. desc cannot be nil. desc.MediaType must be set for manifest blobs.
-func (s *Store) Writer(ctx context.Context, ref string, desc *ocispec.Descriptor) (content.Writer, error) {
-	if desc == nil {
-		return nil, errdefs.ErrInvalidArgument
-	}
+// ReaderAt implements content.Ingester. desc.MediaType must be set for manifest blobs.
+func (s *Store) Writer(ctx context.Context, ref string, desc ocispec.Descriptor) (content.Writer, error) {
 	pusher, err := s.resolver.Pusher(ctx, s.ref)
 	if err != nil {
 		return nil, err
 	}
 	// pusher requires desc.MediaType to determine the PUT URL, especially for manifest blobs.
-	contentWriter, err := pusher.Push(ctx, *desc)
+	contentWriter, err := pusher.Push(ctx, desc)
 	if err != nil {
 		return nil, err
 	}

@@ -143,16 +143,8 @@ func (rs *remoteContent) ListStatuses(ctx context.Context, filters ...string) ([
 	return statuses, nil
 }
 
-func (rs *remoteContent) Writer(ctx context.Context, ref string, desc *ocispec.Descriptor) (content.Writer, error) {
-	var (
-		size     int64
-		expected digest.Digest
-	)
-	if desc != nil {
-		size = desc.Size
-		expected = desc.Digest
-	}
-	wrclient, offset, err := rs.negotiate(ctx, ref, size, expected)
+func (rs *remoteContent) Writer(ctx context.Context, ref string, desc ocispec.Descriptor) (content.Writer, error) {
+	wrclient, offset, err := rs.negotiate(ctx, ref, desc.Size, desc.Digest)
 	if err != nil {
 		return nil, errdefs.FromGRPC(err)
 	}

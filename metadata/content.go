@@ -310,11 +310,7 @@ func (cs *contentStore) Abort(ctx context.Context, ref string) error {
 
 }
 
-func (cs *contentStore) Writer(ctx context.Context, ref string, desc *ocispec.Descriptor) (content.Writer, error) {
-	expected := digest.Digest("")
-	if desc != nil {
-		expected = desc.Digest
-	}
+func (cs *contentStore) Writer(ctx context.Context, ref string, desc ocispec.Descriptor) (content.Writer, error) {
 	ns, err := namespaces.NamespaceRequired(ctx)
 	if err != nil {
 		return nil, err
@@ -328,12 +324,12 @@ func (cs *contentStore) Writer(ctx context.Context, ref string, desc *ocispec.De
 		exists bool
 	)
 	if err := update(ctx, cs.db, func(tx *bolt.Tx) error {
-		if expected != "" {
-			cbkt := getBlobBucket(tx, ns, expected)
+		if desc.Digest != "" {
+			cbkt := getBlobBucket(tx, ns, desc.Digest)
 			if cbkt != nil {
 				// Add content to lease to prevent other reference removals
 				// from effecting this object during a provided lease
-				if err := addContentLease(ctx, tx, expected); err != nil {
+				if err := addContentLease(ctx, tx, desc.Digest); err != nil {
 					return errors.Wrap(err, "unable to lease content")
 				}
 				// Return error outside of transaction to ensure
@@ -380,7 +376,7 @@ func (cs *contentStore) Writer(ctx context.Context, ref string, desc *ocispec.De
 		return nil, err
 	}
 	if exists {
-		return nil, errors.Wrapf(errdefs.ErrAlreadyExists, "content %v", expected)
+		return nil, errors.Wrapf(errdefs.ErrAlreadyExists, "content %v", desc.Digest)
 	}
 
 	// TODO: keep the expected in the writer to use on commit

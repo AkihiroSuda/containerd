@@ -28,9 +28,9 @@ type Provider interface {
 type Ingester interface {
 	// Writer may optionally use the descriptor internally for resolving
 	// the location of the actual data.
-	// If desc is set but the data size is unknown, desc.Size should be set
-	// to 0. Some implementation also accepts negative values.
-	Writer(ctx context.Context, ref string, desc *ocispec.Descriptor) (Writer, error)
+	// If the data size is unknown, desc.Size should be set to 0.
+	// Some implementations may also accept negative values as "unknown".
+	Writer(ctx context.Context, ref string, desc ocispec.Descriptor) (Writer, error)
 }
 
 // Info holds content specific information

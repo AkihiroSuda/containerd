@@ -252,7 +252,7 @@ func (c *Converter) fetchBlob(ctx context.Context, desc ocispec.Descriptor) erro
 	}
 
 tryit:
-	cw, err := c.contentStore.Writer(ctx, ref, &writerDesc)
+	cw, err := c.contentStore.Writer(ctx, ref, writerDesc)
 	if err != nil {
 		if errdefs.IsUnavailable(err) {
 			select {

@@ -389,15 +389,7 @@ func (s *store) total(ingestPath string) int64 {
 // The argument `ref` is used to uniquely identify a long-lived writer transaction.
 //
 // MediaType is not used.
-func (s *store) Writer(ctx context.Context, ref string, desc *ocispec.Descriptor) (content.Writer, error) {
-	var (
-		total    int64
-		expected digest.Digest
-	)
-	if desc != nil {
-		total = desc.Size
-		expected = desc.Digest
-	}
+func (s *store) Writer(ctx context.Context, ref string, desc ocispec.Descriptor) (content.Writer, error) {
 	var lockErr error
 	for count := uint64(0); count < 10; count++ {
 		time.Sleep(time.Millisecond * time.Duration(rand.Intn(1<<count)))
@@ -417,7 +409,7 @@ func (s *store) Writer(ctx context.Context, ref string, desc *ocispec.Descriptor
 		return nil, lockErr
 	}
 
-	w, err := s.writer(ctx, ref, total, expected)
+	w, err := s.writer(ctx, ref, desc.Size, desc.Digest)
 	if err != nil {
 		unlock(ref)
 		return nil, err

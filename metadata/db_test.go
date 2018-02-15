@@ -431,7 +431,7 @@ func create(obj object, tx *bolt.Tx, is images.Store, cs content.Store, sn snaps
 			Size:   int64(len(v.data)),
 			Digest: expected,
 		}
-		w, err := cs.Writer(ctx, "test-ref", &desc)
+		w, err := cs.Writer(ctx, "test-ref", desc)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create writer")
 		}

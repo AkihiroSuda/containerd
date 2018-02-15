@@ -75,7 +75,7 @@ func fetch(ctx context.Context, ingester content.Ingester, fetcher Fetcher, desc
 		retry = 16
 	)
 	for {
-		cw, err = ingester.Writer(ctx, ref, &desc)
+		cw, err = ingester.Writer(ctx, ref, desc)
 		if err != nil {
 			if errdefs.IsAlreadyExists(err) {
 				return nil

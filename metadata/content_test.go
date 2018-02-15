@@ -68,7 +68,7 @@ func TestContentLeased(t *testing.T) {
 		Size:   int64(len(blob)),
 		Digest: expected,
 	}
-	if _, err := cs.Writer(lctx, "test-2", &desc); err == nil {
+	if _, err := cs.Writer(lctx, "test-2", desc); err == nil {
 		t.Fatal("expected already exist error")
 	} else if !errdefs.IsAlreadyExists(err) {
 		t.Fatal(err)

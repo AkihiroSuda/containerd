@@ -310,7 +310,7 @@ var (
 			}
 			defer nrc.Close()
 
-			wr, err := cs.Writer(ctx, "edit-"+object, nil) // TODO(stevvooe): Choose a better key?
+			wr, err := cs.Writer(ctx, "edit-"+object, ocispec.Descriptor{}) // TODO(stevvooe): Choose a better key?
 			if err != nil {
 				return err
 			}
