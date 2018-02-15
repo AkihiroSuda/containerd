@@ -32,34 +32,42 @@ func (s *Store) ReaderAt(ctx context.Context, desc ocispec.Descriptor) (content.
 	if err != nil {
 		return nil, err
 	}
-	// fetcher requires desc.MediaType to determine the GET URL, especially for manifest blobs.
-	r, err := fetcher.Fetch(ctx, desc)
-	if err != nil {
-		return nil, err
-	}
 	return &readerAt{
-		r:    r,
-		desc: desc,
+		fetcher: fetcher,
+		desc:    desc,
 	}, nil
 }
 
 type readerAt struct {
-	r    io.ReadCloser
-	desc ocispec.Descriptor
+	fetcher remotes.Fetcher
+	desc    ocispec.Descriptor
 }
 
 func (r *readerAt) ReadAt(p []byte, off int64) (n int, err error) {
-	if ra, ok := r.r.(io.ReaderAt); ok {
+	// fetcher requires desc.MediaType to determine the GET URL, especially for manifest blobs.
+	rc, err := r.fetcher.Fetch(context.Background(), r.desc)
+	if err != nil {
+		return 0, err
+	}
+	defer rc.Close()
+	if ra, ok := rc.(io.ReaderAt); ok {
 		return ra.ReadAt(p, off)
+	}
+	if rs, ok := rc.(io.ReadSeeker); ok {
+		_, err := rs.Seek(off, io.SeekStart)
+		if err != nil {
+			return 0, err
+		}
+		return rs.Read(p)
 	}
 	if off != 0 {
 		return 0, errors.Wrap(errdefs.ErrInvalidArgument, "fetcher does not support non-zero offset")
 	}
-	return r.r.Read(p)
+	return rc.Read(p)
 }
 
 func (r *readerAt) Close() error {
-	return r.r.Close()
+	return nil
 }
 
 func (r *readerAt) Size() int64 {
