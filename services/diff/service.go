@@ -94,14 +94,27 @@ func (s *service) Register(gs *grpc.Server) error {
 
 func (s *service) Apply(ctx context.Context, er *diffapi.ApplyRequest) (*diffapi.ApplyResponse, error) {
 	var (
-		ocidesc ocispec.Descriptor
-		err     error
-		desc    = toDescriptor(er.Diff)
-		mounts  = toMounts(er.Mounts)
+		ocidesc   ocispec.Descriptor
+		err       error
+		desc      = toDescriptor(er.Diff)
+		mounts    = toMounts(er.Mounts)
+		applyOpts []diff.ApplyOpt
+		warnings  []*diffapi.ApplyWarning
 	)
 
+	if er.ContinueOnError {
+		onError := func(path string, err error) error {
+			warnings = append(warnings, &diffapi.ApplyWarning{
+				Path:    path,
+				Warning: err.Error(),
+			})
+			return nil
+		}
+		applyOpts = append(applyOpts, diff.WithApplyErrorHandler(onError))
+	}
+
 	for _, differ := range s.differs {
-		ocidesc, err = differ.Apply(ctx, desc, mounts)
+		ocidesc, err = differ.Apply(ctx, desc, mounts, applyOpts...)
 		if !errdefs.IsNotImplemented(err) {
 			break
 		}
@@ -112,7 +125,8 @@ func (s *service) Apply(ctx context.Context, er *diffapi.ApplyRequest) (*diffapi
 	}
 
 	return &diffapi.ApplyResponse{
-		Applied: fromDescriptor(ocidesc),
+		Applied:  fromDescriptor(ocidesc),
+		Warnings: warnings,
 	}, nil
 
 }

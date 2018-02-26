@@ -53,7 +53,13 @@ var emptyDesc = ocispec.Descriptor{}
 // Apply applies the content associated with the provided digests onto the
 // provided mounts. Archive content will be extracted and decompressed if
 // necessary.
-func (s *fsApplier) Apply(ctx context.Context, desc ocispec.Descriptor, mounts []mount.Mount) (d ocispec.Descriptor, err error) {
+func (s *fsApplier) Apply(ctx context.Context, desc ocispec.Descriptor, mounts []mount.Mount, opts ...diff.ApplyOpt) (d ocispec.Descriptor, err error) {
+	var config diff.ApplyConfig
+	for _, opt := range opts {
+		if err := opt(&config); err != nil {
+			return emptyDesc, err
+		}
+	}
 	t1 := time.Now()
 	defer func() {
 		if err == nil {
@@ -94,7 +100,10 @@ func (s *fsApplier) Apply(ctx context.Context, desc ocispec.Descriptor, mounts [
 			r: io.TeeReader(r, digester.Hash()),
 		}
 
-		if _, err := archive.Apply(ctx, root, rc); err != nil {
+		onError := func(path string, xerr error) error {
+			return config.OnError(path, xerr)
+		}
+		if _, err := archive.Apply(ctx, root, rc, archive.WithApplyErrorHandler(onError)); err != nil {
 			return err
 		}
 

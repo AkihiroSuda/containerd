@@ -51,6 +51,18 @@ type Comparer interface {
 	Compare(ctx context.Context, lower, upper []mount.Mount, opts ...Opt) (ocispec.Descriptor, error)
 }
 
+// ApplyErrorHandler handles apply errors.
+// Apply stops if the handler is set and returns non-nil error.
+type ApplyErrorHandler func(name string, err error) error
+
+// ApplyConfig is used to hold parameters needed for an apply operation
+type ApplyConfig struct {
+	OnError ApplyErrorHandler
+}
+
+// ApplyOpt is used to configure an apply operation
+type ApplyOpt func(*ApplyConfig) error
+
 // Applier allows applying diffs between mounts
 type Applier interface {
 	// Apply applies the content referred to by the given descriptor to
@@ -58,7 +70,7 @@ type Applier interface {
 	// implementation and content descriptor. For example, in the common
 	// case the descriptor is a file system difference in tar format,
 	// that tar would be applied on top of the mounts.
-	Apply(ctx context.Context, desc ocispec.Descriptor, mount []mount.Mount) (ocispec.Descriptor, error)
+	Apply(ctx context.Context, desc ocispec.Descriptor, mount []mount.Mount, opts ...ApplyOpt) (ocispec.Descriptor, error)
 }
 
 // WithMediaType sets the media type to use for creating the diff, without
@@ -84,6 +96,14 @@ func WithReference(ref string) Opt {
 func WithLabels(labels map[string]string) Opt {
 	return func(c *Config) error {
 		c.Labels = labels
+		return nil
+	}
+}
+
+// WithApplyErrorHandler sets ApplyErrorHandler
+func WithApplyErrorHandler(onError ApplyErrorHandler) ApplyOpt {
+	return func(c *ApplyConfig) error {
+		c.OnError = onError
 		return nil
 	}
 }

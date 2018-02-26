@@ -832,7 +832,6 @@ file {
     java_package: "com.google.protobuf"
     java_outer_classname: "FieldMaskProto"
     java_multiple_files: true
-    go_package: "google.golang.org/genproto/protobuf/field_mask;field_mask"
     objc_class_prefix: "GPB"
     csharp_namespace: "Google.Protobuf.WellKnownTypes"
   }
@@ -1778,6 +1777,13 @@ file {
       type_name: ".containerd.types.Mount"
       json_name: "mounts"
     }
+    field {
+      name: "continue_on_error"
+      number: 3
+      label: LABEL_OPTIONAL
+      type: TYPE_BOOL
+      json_name: "continueOnError"
+    }
   }
   message_type {
     name: "ApplyResponse"
@@ -1788,6 +1794,31 @@ file {
       type: TYPE_MESSAGE
       type_name: ".containerd.types.Descriptor"
       json_name: "applied"
+    }
+    field {
+      name: "warnings"
+      number: 2
+      label: LABEL_REPEATED
+      type: TYPE_MESSAGE
+      type_name: ".containerd.services.diff.v1.ApplyWarning"
+      json_name: "warnings"
+    }
+  }
+  message_type {
+    name: "ApplyWarning"
+    field {
+      name: "path"
+      number: 1
+      label: LABEL_OPTIONAL
+      type: TYPE_STRING
+      json_name: "path"
+    }
+    field {
+      name: "warning"
+      number: 2
+      label: LABEL_OPTIONAL
+      type: TYPE_STRING
+      json_name: "warning"
     }
   }
   message_type {

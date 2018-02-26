@@ -121,17 +121,10 @@ func Apply(ctx context.Context, root string, r io.Reader, opts ...ApplyOpt) (int
 // applyNaive applies a tar stream of an OCI style diff tar.
 // See https://github.com/opencontainers/image-spec/blob/master/layer.md#applying-changesets
 func applyNaive(ctx context.Context, root string, tr *tar.Reader, options ApplyOptions) (size int64, err error) {
-	var (
-		dirs []*tar.Header
-
-		// Used for handling opaque directory markers which
-		// may occur out of order
-		unpackedPaths = make(map[string]struct{})
-
-		// Used for aufs plink directory
-		aufsTempdir   = ""
-		aufsHardlinks = make(map[string]*tar.Header)
-	)
+	st := &applyNaiveState{
+		unpackedPaths: make(map[string]struct{}, 0),
+		aufsHardlinks: make(map[string]*tar.Header, 0),
+	}
 
 	// Iterate through the files in the archive.
 	for {
@@ -151,166 +144,21 @@ func applyNaive(ctx context.Context, root string, tr *tar.Reader, options ApplyO
 		}
 
 		size += hdr.Size
-
 		// Normalize name, for safety and for a simple is-root check
 		hdr.Name = filepath.Clean(hdr.Name)
-
-		if skipFile(hdr) {
-			log.G(ctx).Warnf("file %q ignored: archive may not be supported on system", hdr.Name)
+		skipped, err := applyNaive1(ctx, root, tr, options, st, hdr)
+		if skipped {
 			continue
 		}
-
-		// Split name and resolve symlinks for root directory.
-		ppath, base := filepath.Split(hdr.Name)
-		ppath, err = fs.RootPath(root, ppath)
+		if err != nil && options.OnError != nil {
+			err = options.OnError(hdr.Name, err)
+		}
 		if err != nil {
-			return 0, errors.Wrap(err, "failed to get root path")
+			return size, err
 		}
-
-		// Join to root before joining to parent path to ensure relative links are
-		// already resolved based on the root before adding to parent.
-		path := filepath.Join(ppath, filepath.Join("/", base))
-		if path == root {
-			log.G(ctx).Debugf("file %q ignored: resolved to root", hdr.Name)
-			continue
-		}
-
-		// If file is not directly under root, ensure parent directory
-		// exists or is created.
-		if ppath != root {
-			parentPath := ppath
-			if base == "" {
-				parentPath = filepath.Dir(path)
-			}
-			if _, err := os.Lstat(parentPath); err != nil && os.IsNotExist(err) {
-				err = mkdirAll(parentPath, 0700)
-				if err != nil {
-					return 0, err
-				}
-			}
-		}
-
-		// Skip AUFS metadata dirs
-		if strings.HasPrefix(hdr.Name, whiteoutMetaPrefix) {
-			// Regular files inside /.wh..wh.plnk can be used as hardlink targets
-			// We don't want this directory, but we need the files in them so that
-			// such hardlinks can be resolved.
-			if strings.HasPrefix(hdr.Name, whiteoutLinkDir) && hdr.Typeflag == tar.TypeReg {
-				basename := filepath.Base(hdr.Name)
-				aufsHardlinks[basename] = hdr
-				if aufsTempdir == "" {
-					if aufsTempdir, err = ioutil.TempDir("", "dockerplnk"); err != nil {
-						return 0, err
-					}
-					defer os.RemoveAll(aufsTempdir)
-				}
-				p, err := fs.RootPath(aufsTempdir, basename)
-				if err != nil {
-					return 0, err
-				}
-				if err := createTarFile(ctx, p, root, hdr, tr); err != nil {
-					return 0, err
-				}
-			}
-
-			if hdr.Name != whiteoutOpaqueDir {
-				continue
-			}
-		}
-
-		if strings.HasPrefix(base, whiteoutPrefix) {
-			dir := filepath.Dir(path)
-			if base == whiteoutOpaqueDir {
-				_, err := os.Lstat(dir)
-				if err != nil {
-					return 0, err
-				}
-				err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-					if err != nil {
-						if os.IsNotExist(err) {
-							err = nil // parent was deleted
-						}
-						return err
-					}
-					if path == dir {
-						return nil
-					}
-					if _, exists := unpackedPaths[path]; !exists {
-						err := os.RemoveAll(path)
-						return err
-					}
-					return nil
-				})
-				if err != nil {
-					return 0, err
-				}
-				continue
-			}
-
-			originalBase := base[len(whiteoutPrefix):]
-			originalPath := filepath.Join(dir, originalBase)
-
-			// Ensure originalPath is under dir
-			if dir[len(dir)-1] != filepath.Separator {
-				dir += string(filepath.Separator)
-			}
-			if !strings.HasPrefix(originalPath, dir) {
-				return 0, errors.Wrapf(errInvalidArchive, "invalid whiteout name: %v", base)
-			}
-
-			if err := os.RemoveAll(originalPath); err != nil {
-				return 0, err
-			}
-			continue
-		}
-		// If path exits we almost always just want to remove and replace it.
-		// The only exception is when it is a directory *and* the file from
-		// the layer is also a directory. Then we want to merge them (i.e.
-		// just apply the metadata from the layer).
-		if fi, err := os.Lstat(path); err == nil {
-			if !(fi.IsDir() && hdr.Typeflag == tar.TypeDir) {
-				if err := os.RemoveAll(path); err != nil {
-					return 0, err
-				}
-			}
-		}
-
-		srcData := io.Reader(tr)
-		srcHdr := hdr
-
-		// Hard links into /.wh..wh.plnk don't work, as we don't extract that directory, so
-		// we manually retarget these into the temporary files we extracted them into
-		if hdr.Typeflag == tar.TypeLink && strings.HasPrefix(filepath.Clean(hdr.Linkname), whiteoutLinkDir) {
-			linkBasename := filepath.Base(hdr.Linkname)
-			srcHdr = aufsHardlinks[linkBasename]
-			if srcHdr == nil {
-				return 0, fmt.Errorf("Invalid aufs hardlink")
-			}
-			p, err := fs.RootPath(aufsTempdir, linkBasename)
-			if err != nil {
-				return 0, err
-			}
-			tmpFile, err := os.Open(p)
-			if err != nil {
-				return 0, err
-			}
-			defer tmpFile.Close()
-			srcData = tmpFile
-		}
-
-		if err := createTarFile(ctx, path, root, srcHdr, srcData); err != nil {
-			return 0, err
-		}
-
-		// Directory mtimes must be handled at the end to avoid further
-		// file creation in them to modify the directory mtime
-		if hdr.Typeflag == tar.TypeDir {
-			dirs = append(dirs, hdr)
-		}
-		unpackedPaths[path] = struct{}{}
 	}
 
-	for _, hdr := range dirs {
+	for _, hdr := range st.dirs {
 		path, err := fs.RootPath(root, hdr.Name)
 		if err != nil {
 			return 0, err
@@ -321,6 +169,177 @@ func applyNaive(ctx context.Context, root string, tr *tar.Reader, options ApplyO
 	}
 
 	return size, nil
+}
+
+type applyNaiveState struct {
+	dirs []*tar.Header
+
+	// Used for handling opaque directory markers which
+	// may occur out of order
+	unpackedPaths map[string]struct{}
+
+	// Used for aufs plink directory
+	aufsTempdir   string
+	aufsHardlinks map[string]*tar.Header
+}
+
+// if skipped is true err must be nil
+func applyNaive1(ctx context.Context, root string, tr *tar.Reader, options ApplyOptions, st *applyNaiveState, hdr *tar.Header) (skipped bool, err error) {
+
+	if skipFile(hdr) {
+		log.G(ctx).Warnf("file %q ignored: archive may not be supported on system", hdr.Name)
+		return true, nil
+	}
+
+	// Split name and resolve symlinks for root directory.
+	ppath, base := filepath.Split(hdr.Name)
+	ppath, err = fs.RootPath(root, ppath)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get root path")
+	}
+
+	// Join to root before joining to parent path to ensure relative links are
+	// already resolved based on the root before adding to parent.
+	path := filepath.Join(ppath, filepath.Join("/", base))
+	if path == root {
+		log.G(ctx).Debugf("file %q ignored: resolved to root", hdr.Name)
+		return true, nil
+	}
+
+	// If file is not directly under root, ensure parent directory
+	// exists or is created.
+	if ppath != root {
+		parentPath := ppath
+		if base == "" {
+			parentPath = filepath.Dir(path)
+		}
+		if _, err := os.Lstat(parentPath); err != nil && os.IsNotExist(err) {
+			err = mkdirAll(parentPath, 0700)
+			if err != nil {
+				return false, err
+			}
+		}
+	}
+
+	// Skip AUFS metadata dirs
+	if strings.HasPrefix(hdr.Name, whiteoutMetaPrefix) {
+		// Regular files inside /.wh..wh.plnk can be used as hardlink targets
+		// We don't want this directory, but we need the files in them so that
+		// such hardlinks can be resolved.
+		if strings.HasPrefix(hdr.Name, whiteoutLinkDir) && hdr.Typeflag == tar.TypeReg {
+			basename := filepath.Base(hdr.Name)
+			st.aufsHardlinks[basename] = hdr
+			if st.aufsTempdir == "" {
+				if st.aufsTempdir, err = ioutil.TempDir("", "dockerplnk"); err != nil {
+					return false, err
+				}
+				defer os.RemoveAll(st.aufsTempdir)
+			}
+			p, err := fs.RootPath(st.aufsTempdir, basename)
+			if err != nil {
+				return false, err
+			}
+			if err := createTarFile(ctx, p, root, hdr, tr); err != nil {
+				return false, err
+			}
+		}
+
+		if hdr.Name != whiteoutOpaqueDir {
+			return true, nil
+		}
+	}
+
+	if strings.HasPrefix(base, whiteoutPrefix) {
+		dir := filepath.Dir(path)
+		if base == whiteoutOpaqueDir {
+			_, err := os.Lstat(dir)
+			if err != nil {
+				return false, err
+			}
+			err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					if os.IsNotExist(err) {
+						err = nil // parent was deleted
+					}
+					return err
+				}
+				if path == dir {
+					return nil
+				}
+				if _, exists := st.unpackedPaths[path]; !exists {
+					err := os.RemoveAll(path)
+					return err
+				}
+				return nil
+			})
+			if err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+
+		originalBase := base[len(whiteoutPrefix):]
+		originalPath := filepath.Join(dir, originalBase)
+
+		// Ensure originalPath is under dir
+		if dir[len(dir)-1] != filepath.Separator {
+			dir += string(filepath.Separator)
+		}
+		if !strings.HasPrefix(originalPath, dir) {
+			return false, errors.Wrapf(errInvalidArchive, "invalid whiteout name: %v", base)
+		}
+
+		if err := os.RemoveAll(originalPath); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	// If path exits we almost always just want to remove and replace it.
+	// The only exception is when it is a directory *and* the file from
+	// the layer is also a directory. Then we want to merge them (i.e.
+	// just apply the metadata from the layer).
+	if fi, err := os.Lstat(path); err == nil {
+		if !(fi.IsDir() && hdr.Typeflag == tar.TypeDir) {
+			if err := os.RemoveAll(path); err != nil {
+				return false, err
+			}
+		}
+	}
+
+	srcData := io.Reader(tr)
+	srcHdr := hdr
+
+	// Hard links into /.wh..wh.plnk don't work, as we don't extract that directory, so
+	// we manually retarget these into the temporary files we extracted them into
+	if hdr.Typeflag == tar.TypeLink && strings.HasPrefix(filepath.Clean(hdr.Linkname), whiteoutLinkDir) {
+		linkBasename := filepath.Base(hdr.Linkname)
+		srcHdr = st.aufsHardlinks[linkBasename]
+		if srcHdr == nil {
+			return false, fmt.Errorf("Invalid aufs hardlink")
+		}
+		p, err := fs.RootPath(st.aufsTempdir, linkBasename)
+		if err != nil {
+			return false, err
+		}
+		tmpFile, err := os.Open(p)
+		if err != nil {
+			return false, err
+		}
+		defer tmpFile.Close()
+		srcData = tmpFile
+	}
+
+	if err := createTarFile(ctx, path, root, srcHdr, srcData); err != nil {
+		return false, err
+	}
+
+	// Directory mtimes must be handled at the end to avoid further
+	// file creation in them to modify the directory mtime
+	if hdr.Typeflag == tar.TypeDir {
+		st.dirs = append(st.dirs, hdr)
+	}
+	st.unpackedPaths[path] = struct{}{}
+	return false, nil
 }
 
 func createTarFile(ctx context.Context, path, extractDir string, hdr *tar.Header, reader io.Reader) error {

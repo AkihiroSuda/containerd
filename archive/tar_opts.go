@@ -18,3 +18,7 @@ package archive
 
 // ApplyOpt allows setting mutable archive apply properties on creation
 type ApplyOpt func(options *ApplyOptions) error
+
+// ApplyErrorHandler handles apply errors.
+// Apply stops if the handler is set and returns non-nil error.
+type ApplyErrorHandler func(path string, err error) error

@@ -24,6 +24,7 @@ import (
 	"github.com/containerd/containerd/diff"
 	"github.com/containerd/containerd/mount"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/pkg/errors"
 )
 
 // DiffService handles the computation and application of diffs
@@ -44,14 +45,29 @@ type diffRemote struct {
 	client diffapi.DiffClient
 }
 
-func (r *diffRemote) Apply(ctx context.Context, diff ocispec.Descriptor, mounts []mount.Mount) (ocispec.Descriptor, error) {
+func (r *diffRemote) Apply(ctx context.Context, diffDesc ocispec.Descriptor, mounts []mount.Mount, opts ...diff.ApplyOpt) (ocispec.Descriptor, error) {
+	var config diff.ApplyConfig
+	for _, opt := range opts {
+		if err := opt(&config); err != nil {
+			return ocispec.Descriptor{}, err
+		}
+	}
 	req := &diffapi.ApplyRequest{
-		Diff:   fromDescriptor(diff),
-		Mounts: fromMounts(mounts),
+		Diff:            fromDescriptor(diffDesc),
+		Mounts:          fromMounts(mounts),
+		ContinueOnError: true, // available since v1.1
 	}
 	resp, err := r.client.Apply(ctx, req)
 	if err != nil {
 		return ocispec.Descriptor{}, err
+	}
+	for _, w := range resp.Warnings {
+		if config.OnError == nil {
+			return ocispec.Descriptor{}, err
+		}
+		if err := config.OnError(w.Path, errors.New(w.Warning)); err != nil {
+			return ocispec.Descriptor{}, err
+		}
 	}
 	return toDescriptor(resp.Applied), nil
 }

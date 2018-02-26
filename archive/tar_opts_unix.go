@@ -20,4 +20,13 @@ package archive
 
 // ApplyOptions provides additional options for an Apply operation
 type ApplyOptions struct {
+	OnError ApplyErrorHandler
+}
+
+// WithApplyErrorHandler sets ApplyErrorHandler
+func WithApplyErrorHandler(onError ApplyErrorHandler) ApplyOpt {
+	return func(options *ApplyOptions) error {
+		options.OnError = onError
+		return nil
+	}
 }

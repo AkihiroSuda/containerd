@@ -22,6 +22,7 @@ package archive
 type ApplyOptions struct {
 	ParentLayerPaths        []string // Parent layer paths used for Windows layer apply
 	IsWindowsContainerLayer bool     // True if the tar stream to be applied is a Windows Container Layer
+	OnError                 ApplyErrorHandler
 }
 
 // WithParentLayers adds parent layers to the apply process this is required
@@ -39,6 +40,14 @@ func WithParentLayers(parentPaths []string) ApplyOpt {
 func AsWindowsContainerLayer() ApplyOpt {
 	return func(options *ApplyOptions) error {
 		options.IsWindowsContainerLayer = true
+		return nil
+	}
+}
+
+// WithApplyErrorHandler sets ApplyErrorHandler
+func WithApplyErrorHandler(onError ApplyErrorHandler) ApplyOpt {
+	return func(options *ApplyOptions) error {
+		options.OnError = onError
 		return nil
 	}
 }
