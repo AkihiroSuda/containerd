@@ -114,6 +114,7 @@ func New(ic *plugin.InitContext) (interface{}, error) {
 		return nil, err
 	}
 	cfg := ic.Config.(*Config)
+	logrus.Debugf("cfg=%v", cfg)
 	r := &Runtime{
 		root:    ic.Root,
 		state:   ic.State,
@@ -187,6 +188,7 @@ func (r *Runtime) Create(ctx context.Context, id string, opts runtime.CreateOpts
 	}()
 
 	shimopt := ShimLocal(r.events)
+	logrus.Debugf("r.config=%+v", r.config)
 	if !r.config.NoShim {
 		var cgroup string
 		if opts.Options != nil {
@@ -224,7 +226,7 @@ func (r *Runtime) Create(ctx context.Context, id string, opts runtime.CreateOpts
 				}).Warn("failed to clen up after killed shim")
 			}
 		}
-		shimopt = ShimRemote(r.config.Shim, r.address, cgroup, r.config.ShimDebug, exitHandler)
+		shimopt = ShimRemote(r.config, r.address, cgroup, exitHandler)
 	}
 
 	s, err := bundle.NewShimClient(ctx, namespace, shimopt, ropts)
@@ -242,6 +244,10 @@ func (r *Runtime) Create(ctx context.Context, id string, opts runtime.CreateOpts
 	rt := r.config.Runtime
 	if ropts != nil && ropts.Runtime != "" {
 		rt = ropts.Runtime
+	}
+	rtRoot := r.config.RuntimeRoot
+	if ropts != nil && ropts.RuntimeRoot != "" {
+		rtRoot = ropts.RuntimeRoot
 	}
 	sopts := &shim.CreateTaskRequest{
 		ID:         id,
@@ -266,7 +272,7 @@ func (r *Runtime) Create(ctx context.Context, id string, opts runtime.CreateOpts
 		return nil, errdefs.FromGRPC(err)
 	}
 	t, err := newTask(id, namespace, int(cr.Pid), s, r.monitor, r.events,
-		proc.NewRunc(ropts.RuntimeRoot, sopts.Bundle, namespace, rt, ropts.CriuPath, ropts.SystemdCgroup))
+		proc.NewRunc(rtRoot, sopts.Bundle, namespace, rt, ropts.CriuPath, ropts.SystemdCgroup))
 	if err != nil {
 		return nil, err
 	}
@@ -494,7 +500,7 @@ func (r *Runtime) getRuntime(ctx context.Context, ns, id string) (*runc.Runc, er
 
 	var (
 		cmd  = r.config.Runtime
-		root = proc.RuncRoot
+		root = r.config.RuntimeRoot
 	)
 	if ropts != nil {
 		if ropts.Runtime != "" {

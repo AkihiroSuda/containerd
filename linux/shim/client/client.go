@@ -114,6 +114,7 @@ func newCommand(binary, daemonAddress string, debug bool, config shim.Config, so
 		"-workdir", config.WorkDir,
 		"-address", daemonAddress,
 		"-containerd-binary", selfExe,
+		"-runtime-root", config.RuntimeRoot,
 	}
 
 	if config.Criu != "" {

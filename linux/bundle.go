@@ -29,6 +29,7 @@ import (
 	"github.com/containerd/containerd/linux/shim"
 	"github.com/containerd/containerd/linux/shim/client"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // loadBundle loads an existing bundle from disk
@@ -85,10 +86,15 @@ type bundle struct {
 type ShimOpt func(*bundle, string, *runctypes.RuncOptions) (shim.Config, client.Opt)
 
 // ShimRemote is a ShimOpt for connecting and starting a remote shim
-func ShimRemote(shimBinary, daemonAddress, cgroup string, debug bool, exitHandler func()) ShimOpt {
+func ShimRemote(c *Config, daemonAddress, cgroup string, exitHandler func()) ShimOpt {
 	return func(b *bundle, ns string, ropts *runctypes.RuncOptions) (shim.Config, client.Opt) {
-		return b.shimConfig(ns, ropts),
-			client.WithStart(shimBinary, b.shimAddress(ns), daemonAddress, cgroup, debug, exitHandler)
+		config := b.shimConfig(ns, ropts)
+		if config.RuntimeRoot == "" && c != nil {
+			config.RuntimeRoot = c.RuntimeRoot
+		}
+		logrus.Debugf("c=%+v, runtimeRoot=%q", c, config.RuntimeRoot)
+		return config,
+			client.WithStart(c.Shim, b.shimAddress(ns), daemonAddress, cgroup, c.ShimDebug, exitHandler)
 	}
 }
 
