@@ -21,15 +21,23 @@ package proc
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/containerd/console"
+	"github.com/containerd/containerd/defaults"
+	"github.com/containerd/containerd/rootless"
 	"github.com/pkg/errors"
 )
 
 // RuncRoot is the path to the root runc state directory
-const RuncRoot = "/run/containerd/runc"
+func RuncRoot() string {
+	if rootless.RunningAsUnprivilegedUser() {
+		return filepath.Join(defaults.UserStateDir(), "runc")
+	}
+	return filepath.Join(defaults.DefaultStateDir, "runc")
+}
 
 // Stdio of a process
 type Stdio struct {

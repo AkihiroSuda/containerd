@@ -41,3 +41,28 @@ const (
 	// to store FIFOs. Unused on Windows.
 	DefaultFIFODir = ""
 )
+
+// UserRootDir returns DefaultRootDir
+func UserRootDir() string {
+	return DefaultRootDir
+}
+
+// UserStateDir returns DefaultStateDir
+func UserStateDir() string {
+	return DefaultStateDir
+}
+
+// UserAddress returns DefaultAddress
+func UserAddress() string {
+	return DefaultAddress
+}
+
+// UserDebugAddress returns DefaultDebugAddress
+func UserDebugAddress() string {
+	return DefaultDebugAddress
+}
+
+// UserFIFODir returns DefaultFIFODir
+func UserFIFODir() string {
+	return DefaultFIFODir
+}

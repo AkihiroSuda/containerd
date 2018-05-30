@@ -123,6 +123,11 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 			Path: parts[1],
 		}))
 	}
+	if context.Bool("rootless") {
+		opts = append(opts, oci.WithRootless())
+		// TODO(AkihiroSuda): keep Cgroups enabled if the path is writable
+		opts = append(opts, oci.WithCgroup(""))
+	}
 	if context.IsSet("config") {
 		var s specs.Spec
 		if err := loadSpec(context.String("config"), &s); err != nil {

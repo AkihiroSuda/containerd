@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/containerd/containerd/log"
@@ -110,6 +111,16 @@ func App() *cli.App {
 		// apply flags to the config
 		if err := applyFlags(context, config); err != nil {
 			return err
+		}
+		// Files under XDG_RUNTIME_DIR requires sticky bit on typical setup to prevent GC.
+		// See https://github.com/opencontainers/runc/issues/1694
+		if xrd := os.Getenv("XDG_RUNTIME_DIR"); xrd != "" && strings.HasPrefix(config.State, xrd) {
+			if err := os.MkdirAll(config.State, 0700); err != nil {
+				return err
+			}
+			if err := os.Chmod(config.State, 0700|os.ModeSticky); err != nil {
+				return err
+			}
 		}
 		// cleanup temp mounts
 		if err := mount.SetTempMountLocation(filepath.Join(config.Root, "tmpmounts")); err != nil {
