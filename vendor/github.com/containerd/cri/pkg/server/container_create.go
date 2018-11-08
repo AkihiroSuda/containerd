@@ -416,12 +416,14 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 
 	g.SetRootReadonly(securityContext.GetReadonlyRootfs())
 
-	setOCILinuxResource(&g, config.GetLinux().GetResources())
+	setOCILinuxResource(&g, config.GetLinux().GetResources(), c.noCgroup, c.restrictOOMScoreAdj)
 
-	if sandboxConfig.GetLinux().GetCgroupParent() != "" {
-		cgroupsPath := getCgroupsPath(sandboxConfig.GetLinux().GetCgroupParent(), id,
-			c.config.SystemdCgroup)
-		g.SetLinuxCgroupsPath(cgroupsPath)
+	if !c.noCgroup {
+		if sandboxConfig.GetLinux().GetCgroupParent() != "" {
+			cgroupsPath := getCgroupsPath(sandboxConfig.GetLinux().GetCgroupParent(), id,
+				c.config.SystemdCgroup)
+			g.SetLinuxCgroupsPath(cgroupsPath)
+		}
 	}
 
 	// Set namespaces, share namespace with sandbox container.
@@ -744,17 +746,25 @@ func setOCIBindMountsPrivileged(g *generate.Generator) {
 }
 
 // setOCILinuxResource set container resource limit.
-func setOCILinuxResource(g *generate.Generator, resources *runtime.LinuxContainerResources) {
+func setOCILinuxResource(g *generate.Generator, resources *runtime.LinuxContainerResources, noCgroup, restrictOOMScoreAdj_ bool) {
 	if resources == nil {
 		return
 	}
-	g.SetLinuxResourcesCPUPeriod(uint64(resources.GetCpuPeriod()))
-	g.SetLinuxResourcesCPUQuota(resources.GetCpuQuota())
-	g.SetLinuxResourcesCPUShares(uint64(resources.GetCpuShares()))
-	g.SetLinuxResourcesMemoryLimit(resources.GetMemoryLimitInBytes())
+	if noCgroup {
+		g.SetLinuxCgroupsPath("")
+		g.Config.Linux.Resources = nil
+	} else {
+		g.SetLinuxResourcesCPUPeriod(uint64(resources.GetCpuPeriod()))
+		g.SetLinuxResourcesCPUQuota(resources.GetCpuQuota())
+		g.SetLinuxResourcesCPUShares(uint64(resources.GetCpuShares()))
+		g.SetLinuxResourcesMemoryLimit(resources.GetMemoryLimitInBytes())
+		g.SetLinuxResourcesCPUCpus(resources.GetCpusetCpus())
+		g.SetLinuxResourcesCPUMems(resources.GetCpusetMems())
+	}
 	g.SetProcessOOMScoreAdj(int(resources.GetOomScoreAdj()))
-	g.SetLinuxResourcesCPUCpus(resources.GetCpusetCpus())
-	g.SetLinuxResourcesCPUMems(resources.GetCpusetMems())
+	if restrictOOMScoreAdj_ {
+		restrictOOMScoreAdj(g.Config)
+	}
 }
 
 // getOCICapabilitiesList returns a list of all available capabilities.

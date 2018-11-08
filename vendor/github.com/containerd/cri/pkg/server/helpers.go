@@ -18,6 +18,7 @@ package server
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -32,11 +33,13 @@ import (
 	"github.com/containerd/typeurl"
 	"github.com/docker/distribution/reference"
 	imagedigest "github.com/opencontainers/go-digest"
+	rsystem "github.com/opencontainers/runc/libcontainer/system"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
 	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 
@@ -137,9 +140,9 @@ const (
 // generated is unique as long as sandbox metadata is unique.
 func makeSandboxName(s *runtime.PodSandboxMetadata) string {
 	return strings.Join([]string{
-		s.Name,      // 0
-		s.Namespace, // 1
-		s.Uid,       // 2
+		s.Name,                       // 0
+		s.Namespace,                  // 1
+		s.Uid,                        // 2
 		fmt.Sprintf("%d", s.Attempt), // 3
 	}, nameDelimiter)
 }
@@ -149,10 +152,10 @@ func makeSandboxName(s *runtime.PodSandboxMetadata) string {
 // unique.
 func makeContainerName(c *runtime.ContainerMetadata, s *runtime.PodSandboxMetadata) string {
 	return strings.Join([]string{
-		c.Name,      // 0
-		s.Name,      // 1: pod name
-		s.Namespace, // 2: pod namespace
-		s.Uid,       // 3: pod uid
+		c.Name,                       // 0
+		s.Name,                       // 1: pod name
+		s.Namespace,                  // 2: pod namespace
+		s.Uid,                        // 3: pod uid
 		fmt.Sprintf("%d", c.Attempt), // 4
 	}, nameDelimiter)
 }
@@ -353,7 +356,7 @@ func checkSelinuxLevel(level string) (bool, error) {
 
 	matched, err := regexp.MatchString(`^s\d(-s\d)??(:c\d{1,4}((.c\d{1,4})?,c\d{1,4})*(.c\d{1,4})?(,c\d{1,4}(.c\d{1,4})?)*)?$`, level)
 	if err != nil || !matched {
-		return false, fmt.Errorf("the format of 'level' %q is not correct: %v", level, err)
+		return false, errors.Wrapf(err, "the format of 'level' %q is not correct", level)
 	}
 	return true, nil
 }
@@ -495,4 +498,90 @@ func getRuntimeOptions(c containers.Container) (interface{}, error) {
 		return nil, err
 	}
 	return opts, nil
+}
+
+func getCurrentOOMScoreAdj() int {
+	b, err := ioutil.ReadFile("/proc/self/oom_score_adj")
+	if err != nil {
+		return 0
+	}
+	i, err := strconv.Atoi(string(b))
+	if err != nil {
+		return 0
+	}
+	return i
+}
+
+func restrictOOMScoreAdj(spec *runtimespec.Spec) {
+	currentOOMScoreAdj := getCurrentOOMScoreAdj()
+	if spec.Process.OOMScoreAdj != nil && *spec.Process.OOMScoreAdj < currentOOMScoreAdj {
+		*spec.Process.OOMScoreAdj = currentOOMScoreAdj
+	}
+}
+
+// parseAutoOrBool returns nil for "auto" and "", *bool for bool string.
+func parseAutoOrBool(v string) (*bool, error) {
+	b, err := strconv.ParseBool(v)
+	if err == nil {
+		return &b, nil
+	}
+	if v == "" || v == "auto" {
+		return nil, nil
+	}
+	return nil, errors.Errorf("needs to be auto, true, or false: %q", v)
+}
+
+// parseNoCgroup parses NoCgroup.
+func parseNoCgroup(v string) (bool, error) {
+	p, err := parseAutoOrBool(v)
+	if err != nil {
+		return false, err
+	}
+	if p != nil {
+		return *p, nil
+	}
+	b := rsystem.RunningInUserNS()
+	if b {
+		logrus.Debug("NoCgroup: auto -> true (running in userns)")
+		// TODO(AkihiroSuda): return false (enable cgroup) when the permission delegation is configured
+	} else {
+		logrus.Debug("NoCgroup: auto -> false")
+	}
+	return b, nil
+}
+
+// parseNoApparmor parses NoApparmor
+func parseNoApparmor(v string) (bool, error) {
+	p, err := parseAutoOrBool(v)
+	if err != nil {
+		return false, err
+	}
+	if p != nil {
+		return *p, nil
+	}
+	b := rsystem.RunningInUserNS()
+	if b {
+		logrus.Debug("NoApparmor: auto -> true (running in userns)")
+	} else {
+		logrus.Debug("NoApparmor: auto -> false")
+	}
+	return b, nil
+}
+
+// parseRestrictOOMScoreAdj parses OOMScoreAdj.
+func parseRestrictOOMScoreAdj(v string) (bool, error) {
+	p, err := parseAutoOrBool(v)
+	if err != nil {
+		return false, err
+	}
+	if p != nil {
+		return *p, nil
+	}
+	b := rsystem.RunningInUserNS()
+	if b {
+		logrus.Debug("RestrictOOMScoreAdj: auto -> true (running in userns)")
+	} else {
+		logrus.Debug("RestrictOOMScoreAdj: auto -> false")
+	}
+	return b, nil
 }

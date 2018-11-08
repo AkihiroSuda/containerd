@@ -100,6 +100,10 @@ type criService struct {
 	// initialized indicates whether the server is initialized. All GRPC services
 	// should return error before the server is initialized.
 	initialized atomic.Bool
+	// noCgroup is whether cgroup is disabled
+	noCgroup bool
+	// restrictOOMScoreAdj is whether OOMScoreAdj is restricted
+	restrictOOMScoreAdj bool
 }
 
 // NewCRIService returns a new instance of CRIService
@@ -118,6 +122,20 @@ func NewCRIService(config criconfig.Config, client *containerd.Client) (CRIServi
 		sandboxNameIndex:   registrar.NewRegistrar(),
 		containerNameIndex: registrar.NewRegistrar(),
 		initialized:        atomic.NewBool(false),
+	}
+	c.noCgroup, err = parseNoCgroup(config.NoCgroup)
+	if err != nil {
+		return nil, err
+	}
+	if c.apparmorEnabled {
+		c.apparmorEnabled, err = parseNoApparmor(config.NoApparmor)
+		if err != nil {
+			return nil, err
+		}
+	}
+	c.restrictOOMScoreAdj, err = parseRestrictOOMScoreAdj(config.RestrictOOMScoreAdj)
+	if err != nil {
+		return nil, err
 	}
 
 	if c.config.EnableSelinux {

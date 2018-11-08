@@ -142,6 +142,16 @@ type PluginConfig struct {
 	// Log line longer than the limit will be split into multiple lines. Non-positive
 	// value means no limit.
 	MaxContainerLogLineSize int `toml:"max_container_log_line_size" json:"maxContainerLogSize"`
+	// NoCgroup indicates to disable the cgroup support. (auto/true/false)
+	// This is useful when the daemon does not have permission to access cgroups.
+	NoCgroup string `toml:"no_cgroup" json:"noCgroup"`
+	// NoApparmor indicates to disable the apparmor support. (auto/true/false)
+	// This is useful when the daemon does not have permission to access Apparmor.
+	NoApparmor string `toml:"no_apparmor" json:"noApparmor"`
+	// RestrictOOMScoreAdj indicates to limit the lower bound of OOMScoreAdj to the daemon's
+	// current OOMScoreADj. (auto/true/false)
+	// This is useful when the daemon does not have permission to decrease OOMScoreAdj.
+	RestrictOOMScoreAdj string `toml:"restrict_oom_score_adj" json:"restrictOOMScoreAdj"`
 }
 
 // X509KeyPairStreaming contains the x509 configuration for streaming
