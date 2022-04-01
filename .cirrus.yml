@@ -1,0 +1,31 @@
+compute_engine_instance:
+  image_project: cirrus-images
+  image: family/docker-kvm
+  platform: linux
+  nested_virtualization: true
+  # CPU limit: `16 / NTASK`: see https://cirrus-ci.org/faq/#are-there-any-limits
+  cpu: 4
+  # Memory limit: `4GB * NCPU`
+  memory: 16G
+
+fedora_task:
+  timeout_in: 30m
+  env:
+    HOME: /root
+    DEBIAN_FRONTEND: noninteractive
+    SELINUX: Enforcing
+  install_libvirt_vagrant_script:
+    - apt-get update
+    - apt-get install -y libvirt-daemon libvirt-daemon-system vagrant vagrant-libvirt
+    - systemctl enable --now libvirtd
+  vagrant_cache:
+    fingerprint_script: cat Vagrantfile
+    folder: /root/.vagrant.d
+  vagrant_up_script:
+    - vagrant up
+  test_integration_script:
+    - vagrant up --provision-with=selinux,install-runc,install-gotestsum,test-integration
+  test_cri_script:
+    - vagrant up --provision-with=selinux,install-runc,install-gotestsum,test-cri
+
+# TODO: add rocky_task
