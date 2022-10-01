@@ -21,6 +21,7 @@ import (
 	"io"
 
 	"github.com/containerd/containerd/content"
+	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -50,10 +51,17 @@ type Resolver interface {
 	Pusher(ctx context.Context, ref string) (Pusher, error)
 }
 
-// Fetcher fetches content
+// Fetcher fetches content.
+// A fetcher implementation may implement the FetcherByDigest interface too.
 type Fetcher interface {
 	// Fetch the resource identified by the descriptor.
 	Fetch(ctx context.Context, desc ocispec.Descriptor) (io.ReadCloser, error)
+}
+
+// FetcherByDigest fetches content by the digest.
+type FetcherByDigest interface {
+	// FetchByDigest the resource identified by the digest.
+	FetchByDigest(ctx context.Context, dgst digest.Digest) (io.ReadCloser, int64, error)
 }
 
 // Pusher pushes content
