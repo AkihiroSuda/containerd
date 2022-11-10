@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/archive/tartest"
+	"github.com/containerd/containerd/pkg/epoch"
 	"github.com/containerd/containerd/pkg/testutil"
 	"github.com/containerd/continuity/fs"
 	"github.com/containerd/continuity/fs/fstest"
@@ -1153,14 +1154,14 @@ func TestDiffTar(t *testing.T) {
 	}
 
 	for _, at := range tests {
-		t.Run(at.name, makeDiffTarTest(at.validators, at.a, at.b))
+		t.Run(at.name, makeDiffTarTest(context.Background(), at.validators, at.a, at.b))
 	}
 }
 
 func TestWhiteoutSourceDateEpoch(t *testing.T) {
 	sourceDateEpoch, err := time.Parse(time.RFC3339, "2022-01-23T12:34:56Z")
 	require.NoError(t, err)
-	opts := []WriteDiffOpt{WithSourceDateEpoch(&sourceDateEpoch)}
+	ctx := epoch.WithSourceDateEpoch(context.Background(), &sourceDateEpoch)
 	validators := []tarEntryValidator{
 		composeValidators(whiteoutEntry("f1"), requireModTime(sourceDateEpoch)),
 	}
@@ -1170,7 +1171,7 @@ func TestWhiteoutSourceDateEpoch(t *testing.T) {
 	b := fstest.Apply(
 		fstest.RemoveAll("/f1"),
 	)
-	makeDiffTarTest(validators, a, b, opts...)(t)
+	makeDiffTarTest(ctx, validators, a, b)(t)
 }
 
 type tarEntryValidator func(*tar.Header, []byte) error
@@ -1259,7 +1260,7 @@ func requireModTime(expected time.Time) tarEntryValidator {
 	}
 }
 
-func makeDiffTarTest(validators []tarEntryValidator, a, b fstest.Applier, opts ...WriteDiffOpt) func(*testing.T) {
+func makeDiffTarTest(ctx context.Context, validators []tarEntryValidator, a, b fstest.Applier, opts ...WriteDiffOpt) func(*testing.T) {
 	return func(t *testing.T) {
 		ad := t.TempDir()
 		if err := a.Apply(ad); err != nil {
@@ -1274,7 +1275,7 @@ func makeDiffTarTest(validators []tarEntryValidator, a, b fstest.Applier, opts .
 			t.Fatalf("failed to apply b: %v", err)
 		}
 
-		rc := Diff(context.Background(), ad, bd, opts...)
+		rc := Diff(ctx, ad, bd, opts...)
 		defer rc.Close()
 
 		tr := tar.NewReader(rc)

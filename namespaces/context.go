@@ -23,6 +23,7 @@ import (
 
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/identifiers"
+	"github.com/containerd/containerd/pkg/grpcctx"
 )
 
 const (
@@ -30,6 +31,8 @@ const (
 	NamespaceEnvVar = "CONTAINERD_NAMESPACE"
 	// Default is the name of the default namespace
 	Default = "default"
+	// GRPCHeader defines the header name for specifying a containerd namespace.
+	GRPCHeader = "containerd-namespace"
 )
 
 type namespaceKey struct{}
@@ -39,7 +42,7 @@ func WithNamespace(ctx context.Context, namespace string) context.Context {
 	ctx = context.WithValue(ctx, namespaceKey{}, namespace) // set our key for namespace
 	// also store on the grpc and ttrpc headers so it gets picked up by any clients that
 	// are using this.
-	return withTTRPCNamespaceHeader(withGRPCNamespaceHeader(ctx, namespace), namespace)
+	return withTTRPCNamespaceHeader(grpcctx.WithGRPCNamespaceHeader(ctx, GRPCHeader, namespace), namespace)
 }
 
 // NamespaceFromEnv uses the namespace defined in CONTAINERD_NAMESPACE or
@@ -58,7 +61,7 @@ func NamespaceFromEnv(ctx context.Context) context.Context {
 func Namespace(ctx context.Context) (string, bool) {
 	namespace, ok := ctx.Value(namespaceKey{}).(string)
 	if !ok {
-		if namespace, ok = fromGRPCHeader(ctx); !ok {
+		if namespace, ok = grpcctx.FromGRPCHeader(ctx, GRPCHeader); !ok {
 			return fromTTRPCHeader(ctx)
 		}
 	}

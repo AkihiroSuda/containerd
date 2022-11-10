@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package namespaces
+package grpcctx
 
 import (
 	"context"
@@ -22,17 +22,10 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-const (
-	// GRPCHeader defines the header name for specifying a containerd namespace.
-	GRPCHeader = "containerd-namespace"
-)
-
-// NOTE(stevvooe): We can stub this file out if we don't want a grpc dependency here.
-
-func withGRPCNamespaceHeader(ctx context.Context, namespace string) context.Context {
+func WithGRPCNamespaceHeader(ctx context.Context, k, v string) context.Context {
 	// also store on the grpc headers so it gets picked up by any clients that
 	// are using this.
-	nsheader := metadata.Pairs(GRPCHeader, namespace)
+	nsheader := metadata.Pairs(k, v)
 	md, ok := metadata.FromOutgoingContext(ctx) // merge with outgoing context.
 	if !ok {
 		md = nsheader
@@ -44,7 +37,7 @@ func withGRPCNamespaceHeader(ctx context.Context, namespace string) context.Cont
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
-func fromGRPCHeader(ctx context.Context) (string, bool) {
+func FromGRPCHeader(ctx context.Context, k string) (string, bool) {
 	// try to extract for use in grpc servers.
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -52,7 +45,7 @@ func fromGRPCHeader(ctx context.Context) (string, bool) {
 		return "", false
 	}
 
-	values := md[GRPCHeader]
+	values := md[k]
 	if len(values) == 0 {
 		return "", false
 	}

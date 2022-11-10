@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/log"
+	"github.com/containerd/containerd/pkg/epoch"
 	"github.com/containerd/containerd/pkg/userns"
 	"github.com/containerd/continuity/fs"
 )
@@ -96,8 +97,8 @@ func WriteDiff(ctx context.Context, w io.Writer, a, b string, opts ...WriteDiffO
 // See https://github.com/opencontainers/image-spec/blob/main/layer.md
 func writeDiffNaive(ctx context.Context, w io.Writer, a, b string, o WriteDiffOptions) error {
 	var opts []ChangeWriterOpt
-	if o.SourceDateEpoch != nil {
-		opts = append(opts, WithWhiteoutTime(*o.SourceDateEpoch))
+	if tm := epoch.FromContext(ctx); tm != nil {
+		opts = append(opts, WithWhiteoutTime(*tm))
 	}
 	cw := NewChangeWriter(w, b, opts...)
 	err := fs.Changes(ctx, a, b, cw.HandleChange)

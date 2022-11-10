@@ -65,11 +65,6 @@ func (s *walkingDiff) Compare(ctx context.Context, lower, upper []mount.Mount, o
 		}
 	}
 
-	var writeDiffOpts []archive.WriteDiffOpt
-	if config.SourceDateEpoch != nil {
-		writeDiffOpts = append(writeDiffOpts, archive.WithSourceDateEpoch(config.SourceDateEpoch))
-	}
-
 	var isCompressed bool
 	if config.Compressor != nil {
 		if config.MediaType == "" {
@@ -141,7 +136,7 @@ func (s *walkingDiff) Compare(ctx context.Context, lower, upper []mount.Mount, o
 						return fmt.Errorf("failed to get compressed stream: %w", errOpen)
 					}
 				}
-				errOpen = archive.WriteDiff(ctx, io.MultiWriter(compressed, dgstr.Hash()), lowerRoot, upperRoot, writeDiffOpts...)
+				errOpen = archive.WriteDiff(ctx, io.MultiWriter(compressed, dgstr.Hash()), lowerRoot, upperRoot)
 				compressed.Close()
 				if errOpen != nil {
 					return fmt.Errorf("failed to write compressed diff: %w", errOpen)
@@ -152,7 +147,7 @@ func (s *walkingDiff) Compare(ctx context.Context, lower, upper []mount.Mount, o
 				}
 				config.Labels[uncompressed] = dgstr.Digest().String()
 			} else {
-				if errOpen = archive.WriteDiff(ctx, cw, lowerRoot, upperRoot, writeDiffOpts...); errOpen != nil {
+				if errOpen = archive.WriteDiff(ctx, cw, lowerRoot, upperRoot); errOpen != nil {
 					return fmt.Errorf("failed to write diff: %w", errOpen)
 				}
 			}
