@@ -75,6 +75,7 @@ WHALE = "🇩"
 ONI = "👹"
 
 RELEASE=containerd-$(VERSION:v%=%)-${GOOS}-${GOARCH}
+STATICRELEASE=containerd-static-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 CRIRELEASE=cri-containerd-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 CRICNIRELEASE=cri-containerd-cni-$(VERSION:v%=%)-${GOOS}-${GOARCH}
 
@@ -148,7 +149,7 @@ GOTEST ?= $(GO) test
 OUTPUTDIR = $(join $(ROOTDIR), _output)
 CRIDIR=$(OUTPUTDIR)/cri
 
-.PHONY: clean all AUTHORS build binaries test integration generate protos check-protos coverage ci check help install uninstall vendor release mandir install-man genman install-cri-deps cri-release cri-cni-release cri-integration install-deps bin/cri-integration.test
+.PHONY: clean all AUTHORS build binaries test integration generate protos check-protos coverage ci check help install uninstall vendor release static-release mandir install-man genman install-cri-deps cri-release cri-cni-release cri-integration install-deps bin/cri-integration.test
 .DEFAULT: default
 
 # Forcibly set the default goal to all, in case an include above brought in a rule definition.
@@ -310,6 +311,14 @@ releases/$(RELEASE).tar.gz: $(BINARIES)
 release: releases/$(RELEASE).tar.gz
 	@echo "$(WHALE) $@"
 	@cd releases && sha256sum $(RELEASE).tar.gz >$(RELEASE).tar.gz.sha256sum
+
+releases/$(STATICRELEASE).tar.gz:
+	@make STATIC=1 releases/$(RELEASE).tar.gz
+	@mv releases/$(RELEASE).tar.gz releases/$(STATICRELEASE).tar.gz
+
+static-release: releases/$(STATICRELEASE).tar.gz
+	@echo "$(WHALE) $@"
+	@cd releases && sha256sum $(STATICRELEASE).tar.gz >$(STATICRELEASE).tar.gz.sha256sum
 
 # install of cri deps into release output directory
 ifeq ($(GOOS),windows)
