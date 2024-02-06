@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -431,9 +432,10 @@ func TestImagePullSchema1(t *testing.T) {
 	ctx, cancel := testContext(t)
 	defer cancel()
 	schema1TestImage := "gcr.io/google_containers/pause:3.0@sha256:0d093c962a6c2dd8bb8727b661e2b5f13e9df884af9945b4cc7088d9350cd3ee"
-	_, err = client.Pull(ctx, schema1TestImage, WithPlatform(platforms.DefaultString()), WithSchema1Conversion)
-	if err != nil {
-		t.Fatal(err)
+	_, err = client.Pull(ctx, schema1TestImage, WithPlatform(platforms.DefaultString()))
+	const expectedErr = `media type "application/vnd.docker.distribution.manifest.v1+prettyjws" is no longer supported since containerd v2.0`
+	if err == nil || !strings.Contains(err.Error(), expectedErr) {
+		t.Fatalf("expected an error %q", expectedErr)
 	}
 }
 

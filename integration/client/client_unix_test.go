@@ -19,11 +19,7 @@
 package client
 
 import (
-	"testing"
-
-	. "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/integration/images"
-	"github.com/containerd/platforms"
 )
 
 var (
@@ -44,20 +40,3 @@ var (
 	// So we append `&& exit 0` to force sh shell uses clone-execve.
 	longCommand = withProcessArgs("/bin/sh", "-c", "/bin/sleep inf && exit 0")
 )
-
-func TestImagePullSchema1WithEmptyLayers(t *testing.T) {
-	client, err := newClient(t, address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
-
-	ctx, cancel := testContext(t)
-	defer cancel()
-
-	schema1TestImageWithEmptyLayers := "gcr.io/google-containers/busybox@sha256:d8d3bc2c183ed2f9f10e7258f84971202325ee6011ba137112e01e30f206de67"
-	_, err = client.Pull(ctx, schema1TestImageWithEmptyLayers, WithPlatform(platforms.DefaultString()), WithSchema1Conversion, WithPullUnpack)
-	if err != nil {
-		t.Fatal(err)
-	}
-}

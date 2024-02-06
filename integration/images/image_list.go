@@ -37,7 +37,6 @@ type ImageList struct {
 	VolumeCopyUp     string
 	VolumeOwnership  string
 	ArgsEscaped      string
-	DockerSchema1    string
 }
 
 var (
@@ -56,7 +55,6 @@ func initImages(imageListFile string) {
 		VolumeCopyUp:     "ghcr.io/containerd/volume-copy-up:2.2",
 		VolumeOwnership:  "ghcr.io/containerd/volume-ownership:2.1",
 		ArgsEscaped:      "cplatpublic.azurecr.io/args-escaped-test-image-ns:1.0",
-		DockerSchema1:    "registry.k8s.io/busybox@sha256:4bdd623e848417d96127e16037743f0cd8b528c026e9175e22a84f639eca58ff",
 	}
 
 	if imageListFile != "" {
@@ -94,8 +92,6 @@ const (
 	VolumeOwnership
 	// ArgsEscaped tests image for ArgsEscaped windows bug
 	ArgsEscaped
-	// DockerSchema1 image with docker schema 1
-	DockerSchema1
 )
 
 func initImageMap(imageList ImageList) map[int]string {
@@ -107,7 +103,6 @@ func initImageMap(imageList ImageList) map[int]string {
 	images[VolumeCopyUp] = imageList.VolumeCopyUp
 	images[VolumeOwnership] = imageList.VolumeOwnership
 	images[ArgsEscaped] = imageList.ArgsEscaped
-	images[DockerSchema1] = imageList.DockerSchema1
 	return images
 }
 

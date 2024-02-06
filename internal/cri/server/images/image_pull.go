@@ -156,14 +156,6 @@ func (c *CRIImageService) PullImage(ctx context.Context, name string, credential
 			Headers: c.config.Registry.Headers,
 			Hosts:   c.registryHosts(ctx, credentials, pullReporter.optionUpdateClient),
 		})
-		isSchema1    bool
-		imageHandler containerdimages.HandlerFunc = func(_ context.Context,
-			desc imagespec.Descriptor) ([]imagespec.Descriptor, error) {
-			if desc.MediaType == containerdimages.MediaTypeDockerSchema1Manifest {
-				isSchema1 = true
-			}
-			return nil, nil
-		}
 	)
 
 	defer pcancel()
@@ -180,13 +172,11 @@ func (c *CRIImageService) PullImage(ctx context.Context, name string, credential
 	labels := c.getLabels(ctx, ref)
 
 	pullOpts := []containerd.RemoteOpt{
-		containerd.WithSchema1Conversion, //nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 		containerd.WithResolver(resolver),
 		containerd.WithPullSnapshotter(snapshotter),
 		containerd.WithPullUnpack,
 		containerd.WithPullLabels(labels),
 		containerd.WithMaxConcurrentDownloads(c.config.MaxConcurrentDownloads),
-		containerd.WithImageHandler(imageHandler),
 		containerd.WithUnpackOpts([]containerd.UnpackOpt{
 			containerd.WithUnpackDuplicationSuppressor(c.unpackDuplicationSuppressor),
 			containerd.WithUnpackApplyOpts(diff.WithSyncFs(c.config.ImagePullWithSyncFs)),
@@ -220,7 +210,7 @@ func (c *CRIImageService) PullImage(ctx context.Context, name string, credential
 	}
 	imageID := configDesc.Digest.String()
 
-	repoDigest, repoTag := getRepoDigestAndTag(namedRef, image.Target().Digest, isSchema1)
+	repoDigest, repoTag := getRepoDigestAndTag(namedRef, image.Target().Digest)
 	for _, r := range []string{imageID, repoTag, repoDigest} {
 		if r == "" {
 			continue
@@ -253,14 +243,14 @@ func (c *CRIImageService) PullImage(ctx context.Context, name string, credential
 }
 
 // getRepoDigestAngTag returns image repoDigest and repoTag of the named image reference.
-func getRepoDigestAndTag(namedRef distribution.Named, digest imagedigest.Digest, schema1 bool) (string, string) {
+func getRepoDigestAndTag(namedRef distribution.Named, digest imagedigest.Digest) (string, string) {
 	var repoTag, repoDigest string
 	if _, ok := namedRef.(distribution.NamedTagged); ok {
 		repoTag = namedRef.String()
 	}
 	if _, ok := namedRef.(distribution.Canonical); ok {
 		repoDigest = namedRef.String()
-	} else if !schema1 {
+	} else {
 		// digest is not actual repo digest for schema1 image.
 		repoDigest = namedRef.Name() + "@" + digest.String()
 	}
